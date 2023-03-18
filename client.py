@@ -92,6 +92,49 @@ class Hand:
             return None
 
 
+class GenePool:
+    def __init__(self, gene_pool_value, card_height=200, aspect_ratio=0.71, x=50, y=200,
+                 img_folder=r'C:\Users\fireb\Projects\Doomlings\cards\images'):
+        self.gene_pool_value = gene_pool_value
+        self.card_height = card_height
+        self.aspect_ratio = aspect_ratio
+        self.x = x
+        self.y = y
+        self.img_folder = img_folder
+
+        self.card_width = card_height * aspect_ratio
+
+    def draw_gene_pool(self, win):
+        gene_pool_img_path = os.path.join(self.img_folder, f'Gene Pool {self.gene_pool_value}.png')
+        gene_pool_img = pygame.image.load(gene_pool_img_path)
+        gene_pool_img.convert()
+
+        if self.gene_pool_value >= 5:
+            if (self.gene_pool_value - 5) % 2:
+                orientation = 'landscape'
+            else:
+                orientation = 'portrait'
+        else:
+            if (4 - self.gene_pool_value) % 2:
+                orientation = 'landscape'
+            else:
+                orientation = 'portrait'
+
+        if orientation == 'portrait':
+            new_x = self.x + (self.card_height - self.card_width) / 2
+            new_y = self.y
+            gene_pool_img = pygame.transform.scale(gene_pool_img, (self.card_width, self.card_height))
+        elif orientation == 'landscape':
+            new_x = self.x
+            new_y = self.y + (self.card_height - self.card_width) / 2
+            gene_pool_img = pygame.transform.scale(gene_pool_img, (self.card_height, self.card_width))
+
+        win.blit(gene_pool_img, (new_x, new_y))
+
+    def click(self, pos):
+        pass
+
+
 class TraitPile:
     def __init__(self, trait_pile, card_max_height=200, aspect_ratio=0.71, border_bottom=25, border_top=100,
                  border_sides=25, win_width=700, win_height=700):
@@ -244,7 +287,7 @@ class Playmat:
 buttons = [Button('View Hand', 50, 50, (255, 255, 255), 10, 10, 10),
            Button('View Trait Piles', 150, 50, (255, 255, 255), 10, 10, 10),
            Button('View Game Piles', 250, 50, (255, 255, 255), 10, 10, 10),
-           Button('View Game State', 450, 50, (255, 255, 255), 10, 10, 10),
+           Button('View Game State', 350, 50, (255, 255, 255), 10, 10, 10),
            Button('Discard', 350, 100, (255, 255, 255), 10, 10, 10, 'conditional'),
            Button('Stabilize', 450, 100, (255, 255, 255), 10, 10, 10, 'conditional'),
            Button('End Turn', 550, 100, (255, 255, 255), 10, 10, 10, 'conditional')]
@@ -295,6 +338,10 @@ def redraw_window(win, game, player_id, view_mode):
         if view_mode == 'View Hand':
             hand = Hand(game.players[player_id].hand, win_width=game_window.get_width(), win_height=game_window.get_height())
             hand.draw_hand(win)
+
+            gene_pool = GenePool(game.players[player_id].gene_pool)
+            gene_pool.draw_gene_pool(win)
+
             Button(f'Gene Pool: {game.players[player_id].gene_pool}', 250, 100, (255, 255, 255), 10, 10, 10).draw(win)
 
             if game.game_state[player_id] == 'Discard':

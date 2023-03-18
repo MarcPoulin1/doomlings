@@ -52,9 +52,13 @@ ages = [Age(name='Tropical Lands',
         Age(name='Flourish', turn_effects=[],
             instant_effects=[{'name': 'draw_cards', 'params': {'affected_players': 'all', 'value': 2}}],
             expansion='Base')
-        ]
+        ] + [Age(name='Northern Winds', turn_effects=[],
+                 instant_effects=[{'name': 'draw_cards', 'params': {'affected_players': 'all', 'value': 1}},
+                                  {'name': 'modify_number_cards_to_discard',
+                                   'params': {'affected_players': 'all', 'value': 1}}],
+                 expansion='Base') for _ in range(2)]
 
-ages = [Age(name='Northern Winds', turn_effects=[],
+"""ages = [Age(name='Northern Winds', turn_effects=[],
             instant_effects=[{'name': 'draw_cards', 'params': {'affected_players': 'all', 'value': 1}},
                              {'name': 'modify_number_cards_to_discard', 'params': {'affected_players': 'all', 'value': 1}}],
-            expansion='Base') for _ in range(20)]
+            expansion='Base') for _ in range(20)]"""

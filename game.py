@@ -334,12 +334,12 @@ class Game:
         discard_pile_names = [card.name for card in self.discard_pile]
         traits_pile_names = [trait.name for trait in self.traits_pile]
 
-        players_hand_names = [[] for i in range(self.num_players)]
+        players_hand_names = [[] for _ in range(self.num_players)]
         for player_id in range(self.num_players):
             for card in self.players[player_id].hand:
                 players_hand_names[player_id].append(card.name)
 
-        players_trait_pile_names = [{color: [] for color in self.players[player_id].trait_pile_colors} for i in
+        players_trait_pile_names = [{color: [] for color in self.players[player_id].trait_pile_colors} for player_id in
                                     range(self.num_players)]
         for player_id in range(self.num_players):
             for color in self.players[player_id].trait_pile_colors:
