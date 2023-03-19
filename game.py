@@ -17,13 +17,32 @@ class Player:
         self.number_cards_to_discard = 0
         self.stabilized = False
         self.discard_index = None
+        self.number_dominants = 0
+        self.world_end_points = 0
 
     def number_cards_in_hand(self):
         return len(self.hand)
 
+    def number_colors(self):
+        num_colors = 0
+        for color, cards in self.trait_pile.items():
+            if color != 'Colorless':
+                if len(cards) > 0:
+                    num_colors += 1
+        return num_colors
+
+    def number_traits(self, color=None):
+        if color is None:
+            return sum({key: len(values) for key, values in self.trait_pile.items()}.values())
+        elif color not in self.trait_pile_colors:
+            raise Exception('Color in not found in possible colors.')
+        else:
+            return sum({color: len(values) for key, values in self.trait_pile.items() if key == color}.values())
+
 
 class Game:
     def __init__(self, num_players, age_per_pile=3, num_eras=3, max_gene_pool=8, min_gene_pool=1):
+        self.world_ended = False
         self.last_discard_player_id = None
         self.last_discarded_card = None
         self.connected_players = 0
@@ -86,6 +105,8 @@ class Game:
         self.last_player_id = player_id
 
         self.players[trait_pile_id].trait_pile[played_card.color] += [played_card]
+        if played_card.is_dominant:
+            self.players[player_id].number_dominants += 1
         del self.players[player_id].hand[card_index]
         self.players[player_id].number_cards_turn -= 1
 
@@ -125,11 +146,22 @@ class Game:
 
         if type(active_age).__name__ == 'Catastrophe':
             self.current_era += 1
-            self.catastrophe()
+
+            self.modify_gene_pool(affected_players='all', value=active_age.gene_pool_effect)
+
+            for effect in active_age.catastrophe_effects:
+                function_name = effect['name']
+                params = effect['params']
+                game_function = getattr(self, function_name)
+                game_function(**params)
+
             self.hand_playable()
 
             if self.current_era == self.num_eras:
-                self.world_end()
+                if sum([player.number_cards_to_discard for player in self.players]) > 0:
+                    self.world_ended = True
+                else:
+                    self.world_end()
         else:
             for effect in active_age.instant_effects:
                 function_name = effect['name']
@@ -178,7 +210,6 @@ class Game:
             self.scores[player_id]['bonus_points'] = 0
 
     def catastrophe(self):
-        print('catastrophe happened')
         pass
 
     def modify_gene_pool(self, affected_players, value, trait_pile_id=None):
@@ -197,7 +228,9 @@ class Game:
             if player_id == self.active_player:
                 if player.number_cards_turn > 0:
                     for card in player.hand:
-                        if self.card_restricted(card):
+                        if self.turn_restricted(card):
+                            card.playable = False
+                        elif card.is_dominant and player.number_dominants == 2:
                             card.playable = False
                         else:
                             card.playable = True
@@ -210,16 +243,16 @@ class Game:
 
     def stabilize(self, player_id):
         player = self.players[player_id]
-        num_cards_to_draw = player.gene_pool - len(player.hand)
+        num_cards_to_draw = player.gene_pool - player.number_cards_in_hand()
         self.players[player_id].stabilized = True
         if num_cards_to_draw > 0:
             self.draw_cards('self', num_cards_to_draw, player_id)
             self.active_buttons[player_id] = ['End Turn']
         elif num_cards_to_draw < 0:
             num_cards_to_discard = -num_cards_to_draw
-            self.players[player_id].number_cards_to_discard = num_cards_to_discard
-            self.active_buttons[player_id] = ['Discard']
-            self.game_state[player_id] = 'Discard'
+            self.players[player_id].number_cards_to_discard = min(num_cards_to_discard, player.number_cards_in_hand())
+            if sum([player.number_cards_to_discard for player in self.players]) > 0:
+                self.update_discard_state()
         else:
             self.active_buttons[player_id] = ['End Turn']
 
@@ -255,10 +288,6 @@ class Game:
 
         self.hand_playable()
 
-    def discard_cards(self, player_id, selected_card_indexes):
-        for index in sorted(selected_card_indexes, reverse=True):
-            del self.players[player_id].hand[index]
-
     def update_name(self, player_id, name):
         self.players[player_id].name = name
 
@@ -288,14 +317,21 @@ class Game:
         player.discard_index = None
         self.last_discarded_card = discarded_card
         self.last_discard_player_id = player_id
-        if player.number_cards_to_discard == 0:
-            self.game_state[player_id] = 'Playing'
-            if player.stabilized:
-                self.active_buttons[player_id] = ['End Turn']
-            elif player_id == self.active_player:
-                self.active_buttons[player_id] = ['Stabilize']
-            else:
-                self.active_buttons[player_id] = []
+        if sum([player.number_cards_to_discard for player in self.players]) == 0:
+            for player_id, player in enumerate(self.players):
+                if self.world_ended:
+                    self.world_end()
+                else:
+                    self.game_state[player_id] = 'Playing'
+                if player_id == self.active_player:
+                    if player.stabilized:
+                        self.active_buttons[player_id] = ['End Turn']
+                    elif player_id == self.active_player:
+                        self.active_buttons[player_id] = ['Stabilize']
+                else:
+                    self.active_buttons[player_id] = []
+        else:
+            self.update_discard_state()
         self.hand_playable()
 
     def add_turn_restriction(self, restricted_attribute, restricted_value, restricted_type):
@@ -306,11 +342,12 @@ class Game:
     def modify_number_cards_to_discard(self, affected_players, value):
         if affected_players == 'all':
             for player_id, player in enumerate(self.players):
-                player.number_cards_to_discard = value
-                self.active_buttons[player_id] = ['Discard']
-                self.game_state[player_id] = 'Discard'
+                player.number_cards_to_discard = min(value, player.number_cards_in_hand())
 
-    def card_restricted(self, card):
+        if sum([player.number_cards_to_discard for player in self.players]) > 0:
+            self.update_discard_state()
+
+    def turn_restricted(self, card):
         for restriction in self.turn_restrictions:
             if restriction['restricted_type'] == 'equal':
                 if getattr(card, restriction['restricted_attribute']) == restriction['restricted_value']:
@@ -327,6 +364,55 @@ class Game:
         if affected_players == 'all':
             for player in self.players:
                 player.number_cards_turn = value
+
+    def discard_hand(self, affected_players, player_id=None):
+        if affected_players == 'self':
+            player = self.players[player_id]
+            discarded_cards = player.hand
+            self.discard_pile += discarded_cards
+            player.hand = []
+            self.last_discarded_card = discarded_cards[-1]
+            self.last_discard_player_id = player_id
+            self.hand_playable()
+
+    def skip_stabilization(self, affected_players, player_id=None):
+        if affected_players == 'self':
+            self.active_buttons[player_id] = ['End Turn']
+
+    def draw_card_for_every_color_type(self, affected_players):
+        if affected_players == 'all':
+            for player_id, player in enumerate(self.players):
+                num_cards_to_draw = player.number_colors()
+                self.draw_cards('self', num_cards_to_draw, player_id=player_id)
+
+    def discard_card_from_hand_for_every_color(self, affected_players, color):
+        if affected_players == 'all':
+            for player_id, player in enumerate(self.players):
+                num_cards_to_discard = player.number_traits(color)
+                player.number_cards_to_discard = min(num_cards_to_discard, player.number_cards_in_hand())
+
+        if sum([player.number_cards_to_discard for player in self.players]) > 0:
+            self.update_discard_state()
+
+    def discard_card_from_hand_for_every_dominant(self, affected_players):
+        if affected_players == 'all':
+            for player_id, player in enumerate(self.players):
+                num_cards_to_discard = player.number_dominants
+                if num_cards_to_discard > 0:
+                    player.number_cards_to_discard = min(num_cards_to_discard, player.number_cards_in_hand())
+
+        if sum([player.number_cards_to_discard for player in self.players]) > 0:
+            self.update_discard_state()
+
+    def update_discard_state(self):
+        first_player_to_discard = [i for i, player in enumerate(self.players) if player.number_cards_to_discard][0]
+        for player_id, player in enumerate(self.players):
+            if player_id == first_player_to_discard:
+                self.active_buttons[player_id] = ['Discard']
+                self.game_state[player_id] = 'Discard'
+            else:
+                self.game_state[player_id] = 'Waiting for Players to Discard'
+                self.active_buttons[player_id] = ['Waiting for Players to Discard']
 
     def get_game_state(self):
 

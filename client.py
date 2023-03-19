@@ -50,7 +50,7 @@ class Button:
 
 
 class Hand:
-    def __init__(self, cards, card_height=300, aspect_ratio=0.71, border_bottom=25, border_sides=25, win_width=700,
+    def __init__(self, cards, card_height=500, aspect_ratio=0.71, border_bottom=25, border_sides=25, win_width=700,
                  win_height=700):
         self.cards = cards
         self.card_height = card_height
@@ -81,6 +81,8 @@ class Hand:
                 card_img = pygame.image.load(card.img_path)
                 card_img.convert()
                 card_img = pygame.transform.scale(card_img, (self.card_width, self.card_height))
+                if not card.playable:
+                    card_img.set_alpha(128)
                 win.blit(card_img, (self.x[card_index], self.y))
 
     def click(self, pos):
@@ -276,12 +278,7 @@ class Playmat:
                 win.blit(card_img, (self.eras_x_y[era][0], self.eras_x_y[era][1]))
 
     def click(self, pos):
-        x1, y1 = pos
-        for card_index, x in enumerate(self.x):
-            if x <= x1 <= x + self.card_width and self.y <= y1 <= self.y + self.card_height:
-                return card_index
-        else:
-            return None
+        pass
 
 
 buttons = [Button('View Hand', 50, 50, (255, 255, 255), 10, 10, 10),
@@ -289,6 +286,7 @@ buttons = [Button('View Hand', 50, 50, (255, 255, 255), 10, 10, 10),
            Button('View Game Piles', 250, 50, (255, 255, 255), 10, 10, 10),
            Button('View Game State', 350, 50, (255, 255, 255), 10, 10, 10),
            Button('Discard', 350, 100, (255, 255, 255), 10, 10, 10, 'conditional'),
+           Button('Waiting for Players to Discard', 700, 100, (255, 255, 255), 10, 10, 10, 'conditional'),
            Button('Stabilize', 450, 100, (255, 255, 255), 10, 10, 10, 'conditional'),
            Button('End Turn', 550, 100, (255, 255, 255), 10, 10, 10, 'conditional')]
 
@@ -325,7 +323,7 @@ def redraw_window(win, game, player_id, view_mode):
         Button(text_bonus_points, 100, 300, (255, 255, 255), 20, 20, 20).draw(win)
         Button(text_final_score, 100, 400, (255, 255, 255), 20, 20, 20).draw(win)
 
-    elif game.game_state[player_id] in ['Playing', 'Discard']:
+    elif game.game_state[player_id] in ['Playing', 'Discard', 'Waiting for Players to Discard']:
         for button in buttons:
             if button.active_type == 'conditional':
                 if button.text in game.active_buttons[player_id]:
@@ -345,6 +343,7 @@ def redraw_window(win, game, player_id, view_mode):
             Button(f'Gene Pool: {game.players[player_id].gene_pool}', 250, 100, (255, 255, 255), 10, 10, 10).draw(win)
 
             if game.game_state[player_id] == 'Discard':
+                Button(f'{game.players[player_id].number_cards_to_discard} card(s) left to discard', 500, 100, (255, 255, 255), 10, 10, 10).draw(win)
                 discard_index = game.players[player_id].discard_index
                 if discard_index is not None:
                     pygame.draw.rect(win, (255, 0, 0), [hand.x[discard_index], hand.y, hand.card_width, hand.card_height], 5)
