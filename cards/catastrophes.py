@@ -3,14 +3,12 @@ import os
 
 class Catastrophe:
 
-    def __init__(self, name, gene_pool_effect, catastrophe_effects, world_end_effect, expansion,
-                 images_folder=os.path.join(r'C:\Users\fireb\Projects\Doomlings\cards\images')):
+    def __init__(self, name, gene_pool_effect, catastrophe_effects, world_end_effect, expansion):
         self.name = name
         self.gene_pool_effect = gene_pool_effect
         self.catastrophe_effects = catastrophe_effects
         self.world_end_effect = world_end_effect
         self.expansion = expansion
-        self.img_path = os.path.join(images_folder, f'{self.name}.png')
 
 
 catastrophes = [Catastrophe(name='Overpopulation', gene_pool_effect=1,

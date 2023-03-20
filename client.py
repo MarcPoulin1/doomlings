@@ -78,7 +78,7 @@ class Hand:
             pass
         else:
             for card_index, card in enumerate(self.cards):
-                card_img = pygame.image.load(card.img_path)
+                card_img = pygame.image.load(os.path.join(os.getcwd(), 'cards', 'images',  f'{card.name}.png'))
                 card_img.convert()
                 card_img = pygame.transform.scale(card_img, (self.card_width, self.card_height))
                 if not card.playable:
@@ -96,7 +96,7 @@ class Hand:
 
 class GenePool:
     def __init__(self, gene_pool_value, card_height=200, aspect_ratio=0.71, x=50, y=200,
-                 img_folder=r'C:\Users\fireb\Projects\Doomlings\cards\images'):
+                 img_folder=os.path.join(os.getcwd(), 'cards', 'images')):
         self.gene_pool_value = gene_pool_value
         self.card_height = card_height
         self.aspect_ratio = aspect_ratio
@@ -178,7 +178,7 @@ class TraitPile:
             x = self.x[color_index]
             color = self.colors[color_index]
             for card_index, card in enumerate(self.trait_pile[color]):
-                card_img = pygame.image.load(card.img_path)
+                card_img = pygame.image.load(os.path.join(os.getcwd(), 'cards', 'images',  f'{card.name}.png'))
                 card_img.convert()
                 card_img = pygame.transform.scale(card_img, (self.card_width, self.card_height))
                 win.blit(card_img, (x, self.y[color][card_index]))
@@ -189,7 +189,7 @@ class TraitPile:
 
 class Playmat:
     def __init__(self, discard_pile, traits_pile, ages_pile, eras, border_bottom=25, border_top=100, border_sides=25,
-                 win_width=700, win_height=700, img_folder=r'C:\Users\fireb\Projects\Doomlings\cards\images'):
+                 win_width=700, win_height=700, img_folder=os.path.join(os.getcwd(), 'cards', 'images')):
         self.discard_pile = discard_pile
         self.traits_pile = traits_pile
         self.ages_pile = ages_pile

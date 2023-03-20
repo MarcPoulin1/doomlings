@@ -3,8 +3,7 @@ import os
 
 class Trait:
 
-    def __init__(self, name, effects, remove_effects, face_value, color, expansion, is_dominant=False,
-                 images_folder=os.path.join(r'C:\Users\fireb\Projects\Doomlings\cards\images')):
+    def __init__(self, name, effects, remove_effects, face_value, color, expansion, is_dominant=False):
         self.name = name
         self.effects = effects
         self.remove_effects = remove_effects
@@ -12,7 +11,6 @@ class Trait:
         self.color = color
         self.expansion = expansion
         self.is_dominant = is_dominant
-        self.img_path = os.path.join(images_folder, f'{self.name}.png')
 
 
 traits = [Trait(name='Talons', effects=[], remove_effects=[], face_value=2, color='Purple', expansion='Dinolings'),

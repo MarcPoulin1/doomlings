@@ -3,13 +3,11 @@ import os
 
 class Age:
 
-    def __init__(self, name, turn_effects, instant_effects, expansion,
-                 images_folder=os.path.join(r'C:\Users\fireb\Projects\Doomlings\cards\images')):
+    def __init__(self, name, turn_effects, instant_effects, expansion):
         self.name = name
         self.turn_effects = turn_effects
         self.instant_effects = instant_effects
         self.expansion = expansion
-        self.img_path = os.path.join(images_folder, f'{self.name}.png')
 
 
 birth_of_life = Age(name='The Birth of Life', turn_effects=[],

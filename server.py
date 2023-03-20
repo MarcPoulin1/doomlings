@@ -62,7 +62,8 @@ def threaded_client(conn, game, player_id):
                         game_function = getattr(game, action)
                         game_function(**params)
                         conn.sendall(pickle.dumps(game))
-            except:
+            except Exception as e:
+                print(e)
                 break
 
         print(f'Player {player_id} disconnected.')
