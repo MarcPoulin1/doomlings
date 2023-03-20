@@ -3,6 +3,7 @@ from _thread import *
 import pickle
 from game import Game
 import json
+import traceback
 
 s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 
@@ -63,7 +64,7 @@ def threaded_client(conn, game, player_id):
                         game_function(**params)
                         conn.sendall(pickle.dumps(game))
             except Exception as e:
-                print(e)
+                print(traceback.format_exc())
                 break
 
         print(f'Player {player_id} disconnected.')

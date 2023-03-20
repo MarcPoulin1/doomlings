@@ -285,6 +285,7 @@ buttons = [Button('View Hand', 50, 50, (255, 255, 255), 10, 10, 10),
            Button('View Trait Piles', 150, 50, (255, 255, 255), 10, 10, 10),
            Button('View Game Piles', 250, 50, (255, 255, 255), 10, 10, 10),
            Button('View Game State', 350, 50, (255, 255, 255), 10, 10, 10),
+           Button('Play Card', 250, 100, (255, 255, 255), 10, 10, 10, 'conditional'),
            Button('Discard', 350, 100, (255, 255, 255), 10, 10, 10, 'conditional'),
            Button('Waiting for Players to Discard', 700, 100, (255, 255, 255), 10, 10, 10, 'conditional'),
            Button('Stabilize', 450, 100, (255, 255, 255), 10, 10, 10, 'conditional'),
@@ -326,7 +327,7 @@ def redraw_window(win, game, player_id, view_mode):
     elif game.game_state[player_id] in ['Playing', 'Discard', 'Waiting for Players to Discard']:
         for button in buttons:
             if button.active_type == 'conditional':
-                if button.text in game.active_buttons[player_id]:
+                if button.text in game.active_buttons[player_id] or button.text == game.game_state[player_id]:
                     button.active = True
                 else:
                     button.active = False
@@ -340,13 +341,12 @@ def redraw_window(win, game, player_id, view_mode):
             gene_pool = GenePool(game.players[player_id].gene_pool)
             gene_pool.draw_gene_pool(win)
 
-            Button(f'Gene Pool: {game.players[player_id].gene_pool}', 250, 100, (255, 255, 255), 10, 10, 10).draw(win)
-
-            if game.game_state[player_id] == 'Discard':
+            if game.players[player_id].number_cards_to_discard > 0 and game.game_state[player_id] == 'Discard':
                 Button(f'{game.players[player_id].number_cards_to_discard} card(s) left to discard', 500, 100, (255, 255, 255), 10, 10, 10).draw(win)
-                discard_index = game.players[player_id].discard_index
-                if discard_index is not None:
-                    pygame.draw.rect(win, (255, 0, 0), [hand.x[discard_index], hand.y, hand.card_width, hand.card_height], 5)
+
+            selected_index = game.players[player_id].selected_index
+            if selected_index is not None:
+                pygame.draw.rect(win, (255, 0, 0), [hand.x[selected_index], hand.y, hand.card_width, hand.card_height], 5)
 
         if view_mode == 'View Trait Piles':
             trait_pile = TraitPile(game.players[player_id].trait_pile, win_width=game_window.get_width(), win_height=game_window.get_height())
@@ -430,23 +430,21 @@ def main(player_name):
                                     'params': {'player_id': player_id}}
                             n.send(json.dumps(data))
                         elif button.text == 'Discard':
-                            if game.players[player_id].discard_index is not None:
+                            if game.players[player_id].selected_index is not None:
                                 data = {'action': 'discard_selected_card',
                                         'params': {'player_id': player_id}}
                                 n.send(json.dumps(data))
+                        elif button.text == 'Play Card':
+                            if game.players[player_id].selected_index is not None:
+                                data = {'action': 'play_card',
+                                        'params': {'player_id': player_id, 'trait_pile_id': player_id}}
+                                n.send(json.dumps(data))
                 card_index = hand.click(pos)
-                if game.game_state[player_id] == 'Playing':
+                if game.game_state[player_id] in ['Playing', 'Discard', 'Waiting for Players to Discard']:
                     if card_index is not None:
                         pause = True
-                        if game.players[player_id].hand[card_index].playable:
-                            data = {'action': 'play_card', 'params': {'player_id': player_id, 'trait_pile_id': player_id,
-                                                                      'card_index': card_index}}
-                            n.send(json.dumps(data))
-                elif game.game_state[player_id] == 'Discard':
-                    if card_index is not None:
-                        pause = True
-                        data = {'action': 'update_discard_selection', 'params': {'player_id': player_id,
-                                                                                 'card_index': card_index}}
+                        data = {'action': 'update_selection', 'params': {'player_id': player_id,
+                                                                         'card_index': card_index}}
                         n.send(json.dumps(data))
 
             redraw_window(game_window, game, player_id, view_mode)
