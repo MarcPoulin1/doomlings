@@ -253,7 +253,7 @@ class Playmat:
         win.blit(playmat_img, (self.playmat_x, self.playmat_y))
 
         if self.discard_pile:
-            discarded_card_img = pygame.image.load(self.discard_pile[-1].img_path)
+            discarded_card_img = pygame.image.load(os.path.join(self.img_folder, f'{self.discard_pile[-1].name}.png'))
             discarded_card_img.convert()
             discarded_card_img = pygame.transform.scale(discarded_card_img, (self.card_width, self.card_height))
             win.blit(discarded_card_img, (self.discard_pile_x, self.discard_pile_y))
@@ -272,7 +272,7 @@ class Playmat:
 
         for era, cards in enumerate(self.eras):
             if cards:
-                card_img = pygame.image.load(cards[-1].img_path)
+                card_img = pygame.image.load(os.path.join(self.img_folder, f'{cards[-1].name}.png'))
                 card_img.convert()
                 card_img = pygame.transform.scale(card_img, (self.card_width, self.card_height))
                 win.blit(card_img, (self.eras_x_y[era][0], self.eras_x_y[era][1]))
@@ -374,7 +374,6 @@ def main(player_name):
     unpause_type = None
     n = Network()
     try:
-        n.client.sendall(bytes('connected?', encoding='utf-8'))
         n.client.sendall(bytes('connected?', encoding='utf-8'))
         connected = True
     except ConnectionAbortedError:
