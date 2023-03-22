@@ -49,9 +49,39 @@ class Button:
             return False
 
 
+class ViewButton:
+    def __init__(self, direction, x, y, color, height=50, width=35, active=True):
+        self.direction = direction
+        self.x = x
+        self.y = y
+        self.color = color
+        self.height = height
+        self.width = width
+        self.active = active
+        self.coordinates = None
+
+    def draw(self, win):
+        if self.direction == 'right':
+            self.coordinates = [[self.x, self.y], [self.x, self.y + self.height],
+                                [self.x + self.width, self.y + self.height / 2]]
+        elif self.direction == 'left':
+            self.coordinates = [[self.x, self.y], [self.x, self.y + self.height],
+                                [self.x - self.width, self.y + self.height / 2]]
+        pygame.draw.polygon(win, self.color, self.coordinates)
+
+    def click(self, pos, win):
+        if not self.active:
+            return False
+        x1, y1 = pos
+        if pygame.draw.polygon(win, self.color, self.coordinates).collidepoint(x1, y1):
+            return True
+        else:
+            return False
+
+
 class Hand:
     def __init__(self, cards, card_height=500, aspect_ratio=0.71, border_bottom=25, border_sides=25, win_width=700,
-                 win_height=700):
+                 win_height=700, view_cards=True):
         self.cards = cards
         self.card_height = card_height
         self.aspect_ratio = aspect_ratio
@@ -59,6 +89,7 @@ class Hand:
         self.border_sides = border_sides
         self.win_width = win_width
         self.win_height = win_height
+        self.view_cards = view_cards
 
         self.number_cards = len(self.cards)
         self.card_max_width = self.card_height * self.aspect_ratio
@@ -78,10 +109,13 @@ class Hand:
             pass
         else:
             for card_index, card in enumerate(self.cards):
-                card_img = pygame.image.load(os.path.join(os.getcwd(), 'cards', 'images',  f'{card.name}.png'))
+                if self.view_cards:
+                    card_img = pygame.image.load(os.path.join(os.getcwd(), 'cards', 'images',  f'{card.name}.png'))
+                else:
+                    card_img = pygame.image.load(os.path.join(os.getcwd(), 'cards', 'images', 'Traits.png'))
                 card_img.convert()
                 card_img = pygame.transform.scale(card_img, (self.card_width, self.card_height))
-                if not card.playable:
+                if not card.playable or not self.view_cards:
                     card_img.set_alpha(128)
                 win.blit(card_img, (self.x[card_index], self.y))
 
@@ -291,6 +325,9 @@ buttons = [Button('View Hand', 50, 50, (255, 255, 255), 10, 10, 10),
            Button('Stabilize', 450, 100, (255, 255, 255), 10, 10, 10, 'conditional'),
            Button('End Turn', 550, 100, (255, 255, 255), 10, 10, 10, 'conditional')]
 
+view_buttons = [ViewButton('left', 50, 125, (255, 255, 255)),
+                ViewButton('right', 70, 125, (255, 255, 255))]
+
 
 def redraw_window(win, game, player_id, view_mode):
 
@@ -335,21 +372,58 @@ def redraw_window(win, game, player_id, view_mode):
                 button.draw(win)
 
         if view_mode == 'View Hand':
-            hand = Hand(game.players[player_id].hand, win_width=game_window.get_width(), win_height=game_window.get_height())
+            view_id = game.players[player_id].view_modes[view_mode]
+            if view_id == 0:
+                view_buttons[0].active = False
+            else:
+                view_buttons[0].active = True
+            if view_id == game.num_players - 1:
+                view_buttons[1].active = False
+            else:
+                view_buttons[1].active = True
+            for button in view_buttons:
+                if button.active:
+                    button.draw(win)
+
+            font = pygame.font.SysFont('comicsans', 20)
+            rendered_text = font.render(game.players[view_id].name, 1, (255, 255, 255))
+            win.blit(rendered_text, (125, 150 - rendered_text.get_height() / 2))
+
+            if view_id == player_id:
+                hand = Hand(game.players[view_id].hand, win_width=game_window.get_width(), win_height=game_window.get_height())
+            else:
+                hand = Hand(game.players[view_id].hand, win_width=game_window.get_width(), win_height=game_window.get_height(), view_cards=False)
             hand.draw_hand(win)
 
             gene_pool = GenePool(game.players[player_id].gene_pool)
             gene_pool.draw_gene_pool(win)
 
-            if game.players[player_id].number_cards_to_discard > 0 and game.game_state[player_id] == 'Discard':
+            if game.players[player_id].number_cards_to_discard > 0:
                 Button(f'{game.players[player_id].number_cards_to_discard} card(s) left to discard', 500, 100, (255, 255, 255), 10, 10, 10).draw(win)
 
-            selected_index = game.players[player_id].selected_index
-            if selected_index is not None:
-                pygame.draw.rect(win, (255, 0, 0), [hand.x[selected_index], hand.y, hand.card_width, hand.card_height], 5)
+            selected_hand_index = game.players[player_id].current_selection['View Hand'][view_id]
+            if selected_hand_index is not None and selected_hand_index < len(hand.cards):
+                pygame.draw.rect(win, (255, 0, 0), [hand.x[selected_hand_index], hand.y, hand.card_width, hand.card_height], 5)
 
         if view_mode == 'View Trait Piles':
-            trait_pile = TraitPile(game.players[player_id].trait_pile, win_width=game_window.get_width(), win_height=game_window.get_height())
+            view_id = game.players[player_id].view_modes[view_mode]
+            if view_id == 0:
+                view_buttons[0].active = False
+            else:
+                view_buttons[0].active = True
+            if view_id == game.num_players - 1:
+                view_buttons[1].active = False
+            else:
+                view_buttons[1].active = True
+            for button in view_buttons:
+                if button.active:
+                    button.draw(win)
+
+            font = pygame.font.SysFont('comicsans', 20)
+            rendered_text = font.render(game.players[view_id].name, 1, (255, 255, 255))
+            win.blit(rendered_text, (125, 150 - rendered_text.get_height() / 2))
+
+            trait_pile = TraitPile(game.players[view_id].trait_pile, win_width=game_window.get_width(), win_height=game_window.get_height())
             trait_pile.draw_trait_pile(win)
 
         if view_mode == 'View Game Piles':
@@ -385,7 +459,7 @@ def main(player_name):
     player_id = int(n.player_id)
     print(f'Hello {player_name}!')
 
-    data = {'action': 'update_name',
+    data = {'function': 'update_name',
             'params': {'player_id': player_id, 'name': player_name}}
     n.send(json.dumps(data))
 
@@ -399,8 +473,6 @@ def main(player_name):
         except:
             print('Error server is offline.')
             break
-
-        hand = Hand(game.players[player_id].hand, win_width=game_window.get_width(), win_height=game_window.get_height())
 
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
@@ -419,33 +491,51 @@ def main(player_name):
                 for button in buttons:
                     if button.click(pos):
                         pause = True
+                        selected_card_index = game.players[player_id].current_selection['View Hand'][player_id]
                         if button.text in view_modes:
                             view_mode = button.text
                         elif button.text == 'End Turn':
-                            data = {'action': 'end_turn',
+                            data = {'function': 'end_turn',
                                     'params': {'player_id': player_id}}
                             n.send(json.dumps(data))
                         elif button.text == 'Stabilize':
-                            data = {'action': 'stabilize',
+                            data = {'function': 'stabilize',
                                     'params': {'player_id': player_id}}
                             n.send(json.dumps(data))
                         elif button.text == 'Discard':
-                            if game.players[player_id].selected_index is not None:
-                                data = {'action': 'discard_selected_card',
+                            if selected_card_index is not None:
+                                data = {'function': 'discard_selected_card',
                                         'params': {'player_id': player_id}}
                                 n.send(json.dumps(data))
                         elif button.text == 'Play Card':
-                            if game.players[player_id].selected_index is not None:
-                                data = {'action': 'play_card',
+                            if selected_card_index is not None:
+                                data = {'function': 'play_card',
                                         'params': {'player_id': player_id, 'trait_pile_id': player_id}}
                                 n.send(json.dumps(data))
-                card_index = hand.click(pos)
-                if game.game_state[player_id] in ['Playing', 'Discard', 'Waiting for Players to Discard']:
-                    if card_index is not None:
+                for view_button in view_buttons:
+                    if view_button.click(pos, game_window):
                         pause = True
-                        data = {'action': 'update_selection', 'params': {'player_id': player_id,
-                                                                         'card_index': card_index}}
-                        n.send(json.dumps(data))
+                        if view_button.direction == 'left':
+                            data = {'function': 'update_view_id',
+                                    'params': {'player_id': player_id, 'view_mode': view_mode,
+                                               'value': -1}}
+                            n.send(json.dumps(data))
+                        elif view_button.direction == 'right':
+                            data = {'function': 'update_view_id',
+                                    'params': {'player_id': player_id, 'view_mode': view_mode, 'value': 1}}
+                            n.send(json.dumps(data))
+                if view_mode == 'View Hand':
+                    view_id = game.players[player_id].view_modes[view_mode]
+                    hand = Hand(game.players[view_id].hand, win_width=game_window.get_width(), win_height=game_window.get_height())
+                    card_index = hand.click(pos)
+                    if game.game_state[player_id] in ['Playing', 'Discard', 'Waiting for Players to Discard']:
+                        if card_index is not None:
+                            pause = True
+                            data = {'function': 'update_selection', 'params': {'player_id': player_id,
+                                                                             'view_mode': view_mode,
+                                                                             'view_id': view_id,
+                                                                             'selected_index': card_index}}
+                            n.send(json.dumps(data))
 
             redraw_window(game_window, game, player_id, view_mode)
 

@@ -56,11 +56,11 @@ def threaded_client(conn, game, player_id):
 
                 else:
                     data_dict = json.loads(data)
-                    if 'action' in data_dict:
+                    if 'function' in data_dict:
                         print(f'Received data: {data_dict}')
-                        action = data_dict['action']
+                        function = data_dict['function']
                         params = data_dict['params']
-                        game_function = getattr(game, action)
+                        game_function = getattr(game, function)
                         game_function(**params)
                         conn.sendall(pickle.dumps(game))
             except Exception as e:

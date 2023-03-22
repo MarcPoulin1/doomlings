@@ -16,9 +16,9 @@ class Player:
         self.name = None
         self.number_cards_to_discard = 0
         self.stabilized = False
-        self.selected_index = None
         self.number_dominants = 0
         self.world_end_points = 0
+        self.view_modes = {'View Hand': player_id, 'View Trait Piles': player_id}
 
     def number_cards_in_hand(self):
         return len(self.hand)
@@ -66,6 +66,9 @@ class Game:
         self.scores = [{'world_end': 0, 'face_values': 0, 'bonus_points': 0} for _ in range(self.num_players)]
         self.game_state = ['Waiting for players' for _ in range(self.num_players)]
         self.turn_restrictions = []
+        for player in self.players:
+            player.current_selection = {'View Hand': [None for _ in range(self.num_players)],
+                                        'View Trait Piles': [None for _ in range(self.num_players)]}
 
         self.max_gene_pool = max_gene_pool
         self.min_gene_pool = min_gene_pool
@@ -101,14 +104,15 @@ class Game:
 
     def play_card(self, player_id, trait_pile_id):
         player = self.players[player_id]
-        played_card = player.hand[player.selected_index]
+        selected_card_index = player.current_selection['View Hand'][player_id]
+        played_card = player.hand[selected_card_index]
         self.last_trait_played = played_card
         self.last_player_id = player_id
 
         self.players[trait_pile_id].trait_pile[played_card.color] += [played_card]
         if played_card.is_dominant:
             player.number_dominants += 1
-        del player.hand[player.selected_index]
+        del player.hand[selected_card_index]
         self.players[player_id].number_cards_turn -= 1
 
         for effect in played_card.effects:
@@ -121,7 +125,7 @@ class Game:
                 params['trait_pile_id'] = trait_pile_id
             game_function(**params)
 
-        player.selected_index = None
+        self.reset_selections(player_id)
         self.update_game()
 
     def end_turn(self, player_id):
@@ -300,22 +304,24 @@ class Game:
                 self.start_game()
                 self.game_state = ['Playing' for _ in range(self.num_players)]
 
-    def update_selection(self, player_id, card_index):
-        if self.players[player_id].selected_index == card_index:
-            self.players[player_id].selected_index = None
+    def update_selection(self, player_id, view_mode, view_id, selected_index):
+        player = self.players[player_id]
+        if player.current_selection[view_mode][view_id] == selected_index:
+            player.current_selection[view_mode][view_id] = None
         else:
-            self.players[player_id].selected_index = card_index
+            player.current_selection[view_mode][view_id] = selected_index
         self.update_game()
 
     def discard_selected_card(self, player_id):
         player = self.players[player_id]
-        discarded_card = player.hand[player.selected_index]
+        selected_index = player.current_selection['View Hand'][player_id]
+        discarded_card = player.hand[selected_index]
         player.number_cards_to_discard -= 1
         self.discard_pile.append(discarded_card)
-        del player.hand[player.selected_index]
-        player.selected_index = None
+        del player.hand[selected_index]
         self.last_discarded_card = discarded_card
         self.last_discard_player_id = player_id
+        self.reset_selections(player_id)
         self.update_game()
 
     def add_turn_restriction(self, restricted_attribute, restricted_value, restricted_type):
@@ -355,8 +361,8 @@ class Game:
             player.hand = []
             self.last_discarded_card = discarded_cards[-1]
             self.last_discard_player_id = player_id
-            self.players[player_id].selected_index = None
-            self.hand_playable()
+            self.reset_selections(player_id)
+            self.update_game()
 
     def skip_stabilization(self, affected_players, player_id=None):
         if affected_players == 'self':
@@ -391,10 +397,11 @@ class Game:
                     player_buttons.append('End Turn')
                 else:
                     player_buttons.append('Stabilize')
-            if player.selected_index is not None:
+            selected_card_index = player.current_selection['View Hand'][player_id]
+            if selected_card_index is not None:
                 if player.number_cards_to_discard > 0 and self.game_state[player_id] == 'Discard':
                     player_buttons.append('Discard')
-                if player.hand[player.selected_index].playable:
+                if player.hand[selected_card_index].playable:
                     player_buttons.append('Play Card')
 
             self.active_buttons[player_id] = player_buttons
@@ -415,6 +422,29 @@ class Game:
         self.update_game_state()
         self.hand_playable()
         self.update_buttons()
+        self.selections_check()
+
+    def update_view_id(self, player_id, view_mode, value):
+        self.players[player_id].view_modes[view_mode] += value
+
+    def reset_selections(self, player_id):
+        player = self.players[player_id]
+        player.current_selection = {'View Hand': [None for _ in range(self.num_players)],
+                                    'View Trait Piles': [None for _ in range(self.num_players)]}
+
+    def selections_check(self):
+        for player_id, player in enumerate(self.players):
+            for view_mode, selected_indexes in player.current_selection.items():
+                if view_mode == 'View Hand':
+                    for view_id, selected_index in enumerate(selected_indexes):
+                        if selected_index is None:
+                            continue
+                        hand_size = self.players[view_id].number_cards_in_hand()
+                        if selected_index >= hand_size:
+                            player.current_selection[view_mode][view_id] = None
+                if view_mode == 'View Trait Piles':
+                    # TODO: add trait pile handling
+                    pass
 
     def get_game_state(self):
 
