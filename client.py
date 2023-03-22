@@ -110,7 +110,7 @@ class Hand:
         else:
             for card_index, card in enumerate(self.cards):
                 if self.view_cards:
-                    card_img = pygame.image.load(os.path.join(os.getcwd(), 'cards', 'images',  f'{card.name}.png'))
+                    card_img = pygame.image.load(os.path.join(os.getcwd(), 'cards', 'images', f'{card.name}.png'))
                 else:
                     card_img = pygame.image.load(os.path.join(os.getcwd(), 'cards', 'images', 'Traits.png'))
                 card_img.convert()
@@ -190,9 +190,11 @@ class TraitPile:
         self.trait_pile_width = self.win_width - 2 * self.border_sides
         self.card_width = int(min(self.card_max_width, self.trait_pile_width / self.number_colors))
         self.card_height = int(min(self.card_max_height, self.card_width / self.aspect_ratio))
-        self.space_between_cards = int((self.trait_pile_width - self.number_colors * self.card_width) / (self.number_colors - 1))
+        self.space_between_cards = int(
+            (self.trait_pile_width - self.number_colors * self.card_width) / (self.number_colors - 1))
 
-        self.x = [(self.win_width - self.trait_pile_width) / 2 + i * (self.card_width + self.space_between_cards) for i in range(self.number_colors)]
+        self.x = [(self.win_width - self.trait_pile_width) / 2 + i * (self.card_width + self.space_between_cards) for i
+                  in range(self.number_colors)]
 
         color_pile_height = self.win_height - self.border_bottom - self.border_top - self.card_height
         self.y = {key: [] for key, value in self.trait_pile.items()}
@@ -212,13 +214,20 @@ class TraitPile:
             x = self.x[color_index]
             color = self.colors[color_index]
             for card_index, card in enumerate(self.trait_pile[color]):
-                card_img = pygame.image.load(os.path.join(os.getcwd(), 'cards', 'images',  f'{card.name}.png'))
+                card_img = pygame.image.load(os.path.join(os.getcwd(), 'cards', 'images', f'{card.name}.png'))
                 card_img.convert()
                 card_img = pygame.transform.scale(card_img, (self.card_width, self.card_height))
                 win.blit(card_img, (x, self.y[color][card_index]))
 
     def click(self, pos):
-        pass
+        x1, y1 = pos
+        for color_index, x in enumerate(self.x):
+            color = self.colors[color_index]
+            for card_index, y in enumerate(self.y[color]):
+                if x <= x1 <= x + self.card_width and y <= y1 <= y + self.card_height:
+                    return color, card_index
+        else:
+            return None, None
 
 
 class Playmat:
@@ -321,7 +330,6 @@ buttons = [Button('View Hand', 50, 50, (255, 255, 255), 10, 10, 10),
            Button('View Game State', 350, 50, (255, 255, 255), 10, 10, 10),
            Button('Play Card', 250, 100, (255, 255, 255), 10, 10, 10, 'conditional'),
            Button('Discard', 350, 100, (255, 255, 255), 10, 10, 10, 'conditional'),
-           Button('Waiting for Players to Discard', 700, 100, (255, 255, 255), 10, 10, 10, 'conditional'),
            Button('Stabilize', 450, 100, (255, 255, 255), 10, 10, 10, 'conditional'),
            Button('End Turn', 550, 100, (255, 255, 255), 10, 10, 10, 'conditional')]
 
@@ -330,7 +338,6 @@ view_buttons = [ViewButton('left', 50, 125, (255, 255, 255)),
 
 
 def redraw_window(win, game, player_id, view_mode):
-
     win.fill((0, 0, 0))
 
     if game.game_state[player_id] == 'Waiting for players':
@@ -361,15 +368,17 @@ def redraw_window(win, game, player_id, view_mode):
         Button(text_bonus_points, 100, 300, (255, 255, 255), 20, 20, 20).draw(win)
         Button(text_final_score, 100, 400, (255, 255, 255), 20, 20, 20).draw(win)
 
-    elif game.game_state[player_id] in ['Playing', 'Discard', 'Waiting for Players to Discard']:
+    elif game.game_state[player_id] in ['Playing', 'Discard', 'Waiting for Players Actions']:
         for button in buttons:
             if button.active_type == 'conditional':
-                if button.text in game.active_buttons[player_id] or button.text == game.game_state[player_id]:
+                if button.text in game.active_buttons[player_id]:
                     button.active = True
                 else:
                     button.active = False
             if button.active:
                 button.draw(win)
+
+        Button(f'Game State: {game.game_state[player_id]}', 700, 100, (255, 255, 255), 10, 10, 10).draw(win)
 
         if view_mode == 'View Hand':
             view_id = game.players[player_id].view_modes[view_mode]
@@ -390,20 +399,21 @@ def redraw_window(win, game, player_id, view_mode):
             win.blit(rendered_text, (125, 150 - rendered_text.get_height() / 2))
 
             if view_id == player_id:
-                hand = Hand(game.players[view_id].hand, win_width=game_window.get_width(), win_height=game_window.get_height())
+                hand = Hand(game.players[view_id].hand, win_width=game_window.get_width(),
+                            win_height=game_window.get_height())
             else:
-                hand = Hand(game.players[view_id].hand, win_width=game_window.get_width(), win_height=game_window.get_height(), view_cards=False)
+                hand = Hand(game.players[view_id].hand, win_width=game_window.get_width(),
+                            win_height=game_window.get_height(), view_cards=False)
             hand.draw_hand(win)
 
             gene_pool = GenePool(game.players[player_id].gene_pool)
             gene_pool.draw_gene_pool(win)
 
-            if game.players[player_id].number_cards_to_discard > 0:
-                Button(f'{game.players[player_id].number_cards_to_discard} card(s) left to discard', 500, 100, (255, 255, 255), 10, 10, 10).draw(win)
-
-            selected_hand_index = game.players[player_id].current_selection['View Hand'][view_id]
-            if selected_hand_index is not None and selected_hand_index < len(hand.cards):
-                pygame.draw.rect(win, (255, 0, 0), [hand.x[selected_hand_index], hand.y, hand.card_width, hand.card_height], 5)
+            selected_cards = [selected_card for selected_card in game.players[player_id].current_selection['View Hand']
+                              if selected_card['view_id'] == view_id]
+            for selected_card in selected_cards:
+                card_index = selected_card['card_index']
+                pygame.draw.rect(win, (255, 0, 0), [hand.x[card_index], hand.y, hand.card_width, hand.card_height], 5)
 
         if view_mode == 'View Trait Piles':
             view_id = game.players[player_id].view_modes[view_mode]
@@ -423,11 +433,24 @@ def redraw_window(win, game, player_id, view_mode):
             rendered_text = font.render(game.players[view_id].name, 1, (255, 255, 255))
             win.blit(rendered_text, (125, 150 - rendered_text.get_height() / 2))
 
-            trait_pile = TraitPile(game.players[view_id].trait_pile, win_width=game_window.get_width(), win_height=game_window.get_height())
+            trait_pile = TraitPile(game.players[view_id].trait_pile, win_width=game_window.get_width(),
+                                   win_height=game_window.get_height())
             trait_pile.draw_trait_pile(win)
 
+            selected_cards = [selected_card for selected_card in
+                              game.players[player_id].current_selection['View Trait Piles']
+                              if selected_card['view_id'] == view_id]
+
+            for selected_card in selected_cards:
+                color = selected_card['color']
+                color_index = trait_pile.colors.index(color)
+                card_index = selected_card['card_index']
+                pygame.draw.rect(win, (255, 0, 0), [trait_pile.x[color_index], trait_pile.y[color][card_index],
+                                                    trait_pile.card_width, trait_pile.card_height], 5)
+
         if view_mode == 'View Game Piles':
-            playmat = Playmat(game.discard_pile, game.traits_pile, game.ages_pile, game.eras, win_width=game_window.get_width(), win_height=game_window.get_height())
+            playmat = Playmat(game.discard_pile, game.traits_pile, game.ages_pile, game.eras,
+                              win_width=game_window.get_width(), win_height=game_window.get_height())
             playmat.draw_game_piles(win)
 
         if view_mode == 'View Game State':
@@ -491,7 +514,6 @@ def main(player_name):
                 for button in buttons:
                     if button.click(pos):
                         pause = True
-                        selected_card_index = game.players[player_id].current_selection['View Hand'][player_id]
                         if button.text in view_modes:
                             view_mode = button.text
                         elif button.text == 'End Turn':
@@ -503,15 +525,13 @@ def main(player_name):
                                     'params': {'player_id': player_id}}
                             n.send(json.dumps(data))
                         elif button.text == 'Discard':
-                            if selected_card_index is not None:
-                                data = {'function': 'discard_selected_card',
-                                        'params': {'player_id': player_id}}
-                                n.send(json.dumps(data))
+                            data = {'function': 'discard_selected_card',
+                                    'params': {'player_id': player_id}}
+                            n.send(json.dumps(data))
                         elif button.text == 'Play Card':
-                            if selected_card_index is not None:
-                                data = {'function': 'play_card',
-                                        'params': {'player_id': player_id, 'trait_pile_id': player_id}}
-                                n.send(json.dumps(data))
+                            data = {'function': 'play_card',
+                                    'params': {'player_id': player_id, 'trait_pile_id': player_id}}
+                            n.send(json.dumps(data))
                 for view_button in view_buttons:
                     if view_button.click(pos, game_window):
                         pause = True
@@ -526,15 +546,30 @@ def main(player_name):
                             n.send(json.dumps(data))
                 if view_mode == 'View Hand':
                     view_id = game.players[player_id].view_modes[view_mode]
-                    hand = Hand(game.players[view_id].hand, win_width=game_window.get_width(), win_height=game_window.get_height())
+                    hand = Hand(game.players[view_id].hand, win_width=game_window.get_width(),
+                                win_height=game_window.get_height())
                     card_index = hand.click(pos)
-                    if game.game_state[player_id] in ['Playing', 'Discard', 'Waiting for Players to Discard']:
+                    if game.game_state[player_id] in ['Playing', 'Discard', 'Waiting for Players Actions']:
                         if card_index is not None:
                             pause = True
                             data = {'function': 'update_selection', 'params': {'player_id': player_id,
-                                                                             'view_mode': view_mode,
-                                                                             'view_id': view_id,
-                                                                             'selected_index': card_index}}
+                                                                               'view_mode': view_mode,
+                                                                               'view_id': view_id,
+                                                                               'selected_index': card_index}}
+                            n.send(json.dumps(data))
+                if view_mode == 'View Trait Piles':
+                    view_id = game.players[player_id].view_modes[view_mode]
+                    trait_pile = TraitPile(game.players[view_id].trait_pile, win_width=game_window.get_width(),
+                                           win_height=game_window.get_height())
+                    trait_pile_color, card_index = trait_pile.click(pos)
+                    if game.game_state[player_id] in ['Playing', 'Discard', 'Waiting for Players Actions']:
+                        if card_index is not None:
+                            pause = True
+                            data = {'function': 'update_selection', 'params': {'player_id': player_id,
+                                                                               'view_mode': view_mode,
+                                                                               'view_id': view_id,
+                                                                               'color': trait_pile_color,
+                                                                               'selected_index': card_index}}
                             n.send(json.dumps(data))
 
             redraw_window(game_window, game, player_id, view_mode)

@@ -14,7 +14,6 @@ class Player:
         self.hand = []
         self.gene_pool = 0
         self.name = None
-        self.number_cards_to_discard = 0
         self.stabilized = False
         self.number_dominants = 0
         self.world_end_points = 0
@@ -67,8 +66,9 @@ class Game:
         self.game_state = ['Waiting for players' for _ in range(self.num_players)]
         self.turn_restrictions = []
         for player in self.players:
-            player.current_selection = {'View Hand': [None for _ in range(self.num_players)],
-                                        'View Trait Piles': [None for _ in range(self.num_players)]}
+            player.current_selection = {'View Hand': [],
+                                        'View Trait Piles': []}
+        self.action_queue = []
 
         self.max_gene_pool = max_gene_pool
         self.min_gene_pool = min_gene_pool
@@ -104,7 +104,7 @@ class Game:
 
     def play_card(self, player_id, trait_pile_id):
         player = self.players[player_id]
-        selected_card_index = player.current_selection['View Hand'][player_id]
+        selected_card_index = player.current_selection['View Hand'][0]['card_index']
         played_card = player.hand[selected_card_index]
         self.last_trait_played = played_card
         self.last_player_id = player_id
@@ -163,10 +163,8 @@ class Game:
                 self.update_game()
 
             if self.current_era == self.num_eras:
-                if sum([player.number_cards_to_discard for player in self.players]) > 0:
-                    self.world_ended = True
-                else:
-                    self.world_end()
+                self.world_ended = True
+
         else:
             for effect in active_age.instant_effects:
                 function_name = effect['name']
@@ -238,7 +236,7 @@ class Game:
                             card.playable = False
                         elif card.is_dominant and player.number_dominants == 2:
                             card.playable = False
-                        elif sum([player.number_cards_to_discard for player in self.players]) > 0:
+                        elif self.action_queue:
                             card.playable = False
                         else:
                             card.playable = True
@@ -255,13 +253,14 @@ class Game:
         self.players[player_id].stabilized = True
         if num_cards_to_draw > 0:
             self.draw_cards('self', num_cards_to_draw, player_id)
-            self.update_game()
         elif num_cards_to_draw < 0:
-            num_cards_to_discard = -num_cards_to_draw
-            self.players[player_id].number_cards_to_discard = min(num_cards_to_discard, player.number_cards_in_hand())
-            self.update_game()
-        else:
-            self.update_game()
+            num_cards_to_discard = min(-num_cards_to_draw, player.number_cards_in_hand())
+            new_actions = []
+            for _ in range(num_cards_to_discard):
+                new_actions.append({'player_id': player_id, 'name': 'Discard', 'view_mode': 'View Hand',
+                                    'view_id': player_id, 'color': None})
+            self.action_queue = new_actions + self.action_queue
+        self.update_game()
         player.number_cards_turn = 0
         self.update_game()
 
@@ -304,19 +303,25 @@ class Game:
                 self.start_game()
                 self.game_state = ['Playing' for _ in range(self.num_players)]
 
-    def update_selection(self, player_id, view_mode, view_id, selected_index):
+    def update_selection(self, player_id, view_mode, view_id, selected_index, color=None):
         player = self.players[player_id]
-        if player.current_selection[view_mode][view_id] == selected_index:
-            player.current_selection[view_mode][view_id] = None
-        else:
-            player.current_selection[view_mode][view_id] = selected_index
+        if view_mode == 'View Hand':
+            if {'view_id': view_id, 'card_index': selected_index} in player.current_selection[view_mode]:
+                player.current_selection[view_mode].remove({'view_id': view_id, 'card_index': selected_index})
+            else:
+                player.current_selection[view_mode].append({'view_id': view_id, 'card_index': selected_index})
+        if view_mode == 'View Trait Piles':
+            if {'view_id': view_id, 'color': color, 'card_index': selected_index} in player.current_selection[view_mode]:
+                player.current_selection[view_mode].remove({'view_id': view_id, 'color': color, 'card_index': selected_index})
+            else:
+                player.current_selection[view_mode].append({'view_id': view_id, 'color': color, 'card_index': selected_index})
         self.update_game()
 
     def discard_selected_card(self, player_id):
         player = self.players[player_id]
-        selected_index = player.current_selection['View Hand'][player_id]
+        selected_index = player.current_selection['View Hand'][0]['card_index']
         discarded_card = player.hand[selected_index]
-        player.number_cards_to_discard -= 1
+        del self.action_queue[0]
         self.discard_pile.append(discarded_card)
         del player.hand[selected_index]
         self.last_discarded_card = discarded_card
@@ -329,11 +334,15 @@ class Game:
                                        'restricted_value': restricted_value,
                                        'restricted_type': restricted_type})
 
-    def modify_number_cards_to_discard(self, affected_players, value):
+    def add_cards_to_discard_from_hand(self, affected_players, value):
         if affected_players == 'all':
+            new_actions = []
             for player_id, player in enumerate(self.players):
-                player.number_cards_to_discard = min(value, player.number_cards_in_hand())
-                print(self.game_state[player_id])
+                num_cards_to_discard = min(value, player.number_cards_in_hand())
+                for _ in range(num_cards_to_discard):
+                    new_actions.append({'player_id': player_id, 'name': 'Discard', 'view_mode': 'View Hand',
+                                        'view_id': player_id, 'color': None})
+            self.action_queue = new_actions + self.action_queue
 
     def turn_restricted(self, card):
         for restriction in self.turn_restrictions:
@@ -376,44 +385,85 @@ class Game:
 
     def discard_card_from_hand_for_every_color(self, affected_players, color):
         if affected_players == 'all':
+            new_actions = []
             for player_id, player in enumerate(self.players):
-                num_cards_to_discard = player.number_traits(color)
-                player.number_cards_to_discard = min(num_cards_to_discard, player.number_cards_in_hand())
+                num_cards_to_discard = min(player.number_traits(color), player.number_cards_in_hand())
+                for _ in range(num_cards_to_discard):
+                    new_actions.append({'player_id': player_id, 'name': 'Discard', 'view_mode': 'View Hand',
+                                        'view_id': player_id, 'color': None})
+            self.action_queue = new_actions + self.action_queue
 
     def discard_card_from_hand_for_every_dominant(self, affected_players):
         if affected_players == 'all':
+            new_actions = []
             for player_id, player in enumerate(self.players):
-                num_cards_to_discard = player.number_dominants
-                if num_cards_to_discard > 0:
-                    player.number_cards_to_discard = min(num_cards_to_discard, player.number_cards_in_hand())
+                num_cards_to_discard = min(player.number_dominants, player.number_cards_in_hand())
+                for _ in range(num_cards_to_discard):
+                    new_actions.append({'player_id': player_id, 'name': 'Discard', 'view_mode': 'View Hand',
+                                        'view_id': player_id, 'color': None})
+            self.action_queue = new_actions + self.action_queue
+
+    def discard_card_from_trait_pile(self, affected_players, color, value):
+        if affected_players == 'all':
+            new_actions = []
+            for player_id, player in enumerate(self.players):
+                num_traits_to_discard = min(player.number_traits(color), value)
+                for _ in range(num_traits_to_discard):
+                    new_actions.append({'player_id': player_id, 'name': 'Discard',
+                                        'view_mode': 'View Trait Piles', 'view_id': player_id, 'color': color})
+            self.action_queue = new_actions + self.action_queue
 
     def update_buttons(self):
-        total_number_cards_to_discard = sum([player.number_cards_to_discard for player in self.players])
+        num_queued_actions = len(self.action_queue)
+        if num_queued_actions > 0:
+            current_action = self.action_queue[0]
+        else:
+            current_action = None
         for player_id, player in enumerate(self.players):
             player_buttons = []
-            if player_id == self.active_player and total_number_cards_to_discard == 0:
+            if player_id == self.active_player and num_queued_actions == 0:
                 player_buttons = []
                 if player.stabilized:
                     player_buttons.append('End Turn')
                 else:
                     player_buttons.append('Stabilize')
-            selected_card_index = player.current_selection['View Hand'][player_id]
-            if selected_card_index is not None:
-                if player.number_cards_to_discard > 0 and self.game_state[player_id] == 'Discard':
-                    player_buttons.append('Discard')
+            selected_card_indexes = [selected_card for selected_card in player.current_selection['View Hand'] if selected_card['view_id'] == player_id]
+            if len(selected_card_indexes) == 1:
+                selected_card_index = selected_card_indexes[0]['card_index']
                 if player.hand[selected_card_index].playable:
                     player_buttons.append('Play Card')
-
+            if current_action is not None:
+                if self.action_doable(current_action, player_id):
+                    player_buttons.append(current_action['name'])
             self.active_buttons[player_id] = player_buttons
 
+    def action_doable(self, action, player_id):
+        action_view_mode = action['view_mode']
+        action_view_id = action['view_id']
+        action_color = action['color']
+        player = self.players[player_id]
+        current_player_selection = player.current_selection
+        if action_color is None:
+            action_selection = [selected_card for selected_card in current_player_selection[action_view_mode]
+                                if selected_card['view_id'] == action_view_id]
+        else:
+            action_selection = [selected_card for selected_card in current_player_selection[action_view_mode]
+                                if selected_card[action_view_id] and selected_card['color'] == action_color]
+        if len(action_selection) == 1:
+            return True
+        else:
+            return False
+
     def update_game_state(self):
-        if sum([player.number_cards_to_discard for player in self.players]) > 0:
-            first_player_to_discard = [i for i, player in enumerate(self.players) if player.number_cards_to_discard][0]
+        if len(self.action_queue) > 0:
+            current_action = self.action_queue[0]
+            action_player_id = current_action['player_id']
+            action_name = current_action['name']
             for player_id, player in enumerate(self.players):
-                if player_id == first_player_to_discard:
-                    self.game_state[player_id] = 'Discard'
+                if player_id == action_player_id:
+                    self.game_state[player_id] = action_name
                 else:
-                    self.game_state[player_id] = 'Waiting for Players to Discard'
+                    self.game_state[player_id] = 'Waiting for Players Actions'
         else:
             for player_id, player in enumerate(self.players):
                 self.game_state[player_id] = 'Playing'
@@ -429,22 +479,25 @@ class Game:
 
     def reset_selections(self, player_id):
         player = self.players[player_id]
-        player.current_selection = {'View Hand': [None for _ in range(self.num_players)],
-                                    'View Trait Piles': [None for _ in range(self.num_players)]}
+        player.current_selection = {'View Hand': [],
+                                    'View Trait Piles': []}
 
     def selections_check(self):
         for player_id, player in enumerate(self.players):
             for view_mode, selected_indexes in player.current_selection.items():
                 if view_mode == 'View Hand':
-                    for view_id, selected_index in enumerate(selected_indexes):
-                        if selected_index is None:
-                            continue
-                        hand_size = self.players[view_id].number_cards_in_hand()
-                        if selected_index >= hand_size:
-                            player.current_selection[view_mode][view_id] = None
+                    for selected_index in selected_indexes:
+                        selection_view_id = selected_index['view_id']
+                        selection_card_index = selected_index['card_index']
+                        if selection_card_index >= self.players[selection_view_id].number_cards_in_hand():
+                            player.current_selection[view_mode].remove(selected_index)
                 if view_mode == 'View Trait Piles':
-                    # TODO: add trait pile handling
-                    pass
+                    for selected_index in selected_indexes:
+                        selection_view_id = selected_index['view_id']
+                        selection_color = selected_index['color']
+                        selection_card_index = selected_index['card_index']
+                        if selection_card_index >= self.players[selection_view_id].number_traits(selection_color):
+                            player.current_selection[view_mode].remove(selected_index)
 
     def get_game_state(self):
 

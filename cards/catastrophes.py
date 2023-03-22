@@ -41,3 +41,8 @@ catastrophes = [Catastrophe(name='Overpopulation', gene_pool_effect=1,
                                 {'name': 'discard_card_from_hand_for_every_color', 'params': {'affected_players': 'all', 'color': 'Purple'}}],
                             world_end_effect='', expansion='Base')
                 ]
+
+catastrophes = [Catastrophe(name='Mass Extinction', gene_pool_effect=-1,
+                            catastrophe_effects=[
+                                {'name': 'discard_card_from_hand_for_every_color', 'params': {'affected_players': 'all', 'color': 'Colorless'}}],
+                            world_end_effect='', expansion='Base') for _ in range(3)]
