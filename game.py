@@ -38,9 +38,18 @@ class Player:
         else:
             return sum({color: len(values) for key, values in self.trait_pile.items() if key == color}.values())
 
+    def number_traits_above(self, face_value):
+        number_above = 0
+        for traits in self.trait_pile.values():
+            for trait in traits:
+                if trait.face_value > face_value:
+                    number_above += 1
+        return number_above
+
 
 class Game:
-    def __init__(self, num_players, age_per_pile=3, num_eras=3, max_gene_pool=8, min_gene_pool=1):
+    def __init__(self, num_players, age_per_pile=1, num_eras=3, max_gene_pool=8, min_gene_pool=1):
+        self.world_end_effect = None
         self.world_ended = False
         self.last_discard_player_id = None
         self.last_discarded_card = None
@@ -164,6 +173,8 @@ class Game:
 
             if self.current_era == self.num_eras:
                 self.world_ended = True
+                self.world_end_effect = False
+                self.update_game()
 
         else:
             for effect in active_age.instant_effects:
@@ -182,10 +193,15 @@ class Game:
 
     def world_end(self):
 
-        for player_id, player in enumerate(self.players):
-            self.resolve_word_end_traits(player_id)
-
-        self.resolve_world_end_effect()
+        '''for player_id, player in enumerate(self.players):
+            self.resolve_world_end_traits(player_id)
+            self.update_game()'''
+        if not self.world_end_effect:
+            self.resolve_world_end_effect()
+            self.world_end_effect = True
+        if len(self.action_queue) > 0:
+            self.update_game()
+            return
 
         self.compile_score()
 
@@ -193,17 +209,26 @@ class Game:
 
         print('world ended!')
 
-    def resolve_word_end_traits(self, player_id):
+    def resolve_world_end_traits(self, player_id):
         pass
 
     def resolve_world_end_effect(self):
-        pass
+        if not self.world_end_effect:
+            last_catastrophe = self.eras[self.num_eras - 1][-1]
+
+            effect = last_catastrophe.world_end_effect
+            function_name = effect['name']
+            params = effect['params']
+            game_function = getattr(self, function_name)
+            game_function(**params)
+
+            self.world_end_effect = True
 
     def compile_score(self):
 
         for player_id, player in enumerate(self.players):
             # world end points
-            self.scores[player_id]['world_end'] = 0
+            self.scores[player_id]['world_end'] = player.world_end_points
 
             # face value points
             for color, cards in player.trait_pile.items():
@@ -319,11 +344,34 @@ class Game:
 
     def discard_selected_card(self, player_id):
         player = self.players[player_id]
-        selected_index = player.current_selection['View Hand'][0]['card_index']
-        discarded_card = player.hand[selected_index]
-        del self.action_queue[0]
-        self.discard_pile.append(discarded_card)
-        del player.hand[selected_index]
+        action = self.action_queue[0]
+        action_view_mode = action['view_mode']
+        action_view_id = action['view_id']
+        action_color = action['color']
+        current_player_selection = player.current_selection
+        if action_color is None:
+            action_selection = [selected_card for selected_card in current_player_selection[action_view_mode]
+                                if selected_card['view_id'] == action_view_id][0]
+            selected_index = action_selection['card_index']
+            discarded_card = self.players[action_view_id].hand[selected_index]
+            del self.action_queue[0]
+            self.discard_pile.append(discarded_card)
+            del self.players[action_view_id].hand[selected_index]
+        else:
+            action_selection = [selected_card for selected_card in current_player_selection[action_view_mode]
+                                if selected_card['view_id'] == action_view_id and selected_card['color'] == action_color][0]
+            selected_index = action_selection['card_index']
+            selected_color = action_selection['color']
+            discarded_card = self.players[action_view_id].trait_pile[selected_color][selected_index]
+            del self.action_queue[0]
+            self.discard_pile.append(discarded_card)
+            for effect in discarded_card.remove_effects:
+                function_name = effect['name']
+                params = effect['params']
+                game_function = getattr(self, function_name)
+                game_function(**params)
+                self.update_game()
+            del self.players[action_view_id].trait_pile[selected_color][selected_index]
         self.last_discarded_card = discarded_card
         self.last_discard_player_id = player_id
         self.reset_selections(player_id)
@@ -413,6 +461,26 @@ class Game:
                                         'view_mode': 'View Trait Piles', 'view_id': player_id, 'color': color})
             self.action_queue = new_actions + self.action_queue
 
+    def modify_world_end_points_for_every_color(self, affected_players, color, value):
+        if affected_players == 'all':
+            for player in self.players:
+                number_traits_color = player.number_traits(color)
+                player.world_end_points += number_traits_color * value
+
+    def modify_world_end_points_fewest_traits(self, affected_players, value):
+        if affected_players == 'all':
+            min_traits = min([player.number_traits() for player in self.players])
+            for player in self.players:
+                if player.number_traits() == min_traits:
+                    player.world_end_points += value
+
+    def modify_world_end_points_face_value(self, affected_players, face_value, compare_type, value):
+        if affected_players == 'all':
+            for player in self.players:
+                if compare_type == 'greater_than':
+                    number_traits = player.number_traits_above(face_value)
+                player.world_end_points += number_traits * value
+
     def update_buttons(self):
         num_queued_actions = len(self.action_queue)
         if num_queued_actions > 0:
@@ -448,7 +516,7 @@ class Game:
                                 if selected_card['view_id'] == action_view_id]
         else:
             action_selection = [selected_card for selected_card in current_player_selection[action_view_mode]
-                                if selected_card[action_view_id] and selected_card['color'] == action_color]
+                                if selected_card['view_id'] == action_view_id and selected_card['color'] == action_color]
         if len(action_selection) == 1:
             return True
         else:
@@ -464,6 +532,8 @@ class Game:
                     self.game_state[player_id] = action_name
                 else:
                     self.game_state[player_id] = 'Waiting for Players Actions'
+        elif self.world_ended:
+            self.world_end()
         else:
             for player_id, player in enumerate(self.players):
                 self.game_state[player_id] = 'Playing'

@@ -114,7 +114,7 @@ class Hand:
                 else:
                     card_img = pygame.image.load(os.path.join(os.getcwd(), 'cards', 'images', 'Traits.png'))
                 card_img.convert()
-                card_img = pygame.transform.scale(card_img, (self.card_width, self.card_height))
+                card_img = pygame.transform.smoothscale(card_img, (self.card_width, self.card_height))
                 if not card.playable or not self.view_cards:
                     card_img.set_alpha(128)
                 win.blit(card_img, (self.x[card_index], self.y))
@@ -159,11 +159,11 @@ class GenePool:
         if orientation == 'portrait':
             new_x = self.x + (self.card_height - self.card_width) / 2
             new_y = self.y
-            gene_pool_img = pygame.transform.scale(gene_pool_img, (self.card_width, self.card_height))
+            gene_pool_img = pygame.transform.smoothscale(gene_pool_img, (self.card_width, self.card_height))
         elif orientation == 'landscape':
             new_x = self.x
             new_y = self.y + (self.card_height - self.card_width) / 2
-            gene_pool_img = pygame.transform.scale(gene_pool_img, (self.card_height, self.card_width))
+            gene_pool_img = pygame.transform.smoothscale(gene_pool_img, (self.card_height, self.card_width))
 
         win.blit(gene_pool_img, (new_x, new_y))
 
@@ -216,7 +216,7 @@ class TraitPile:
             for card_index, card in enumerate(self.trait_pile[color]):
                 card_img = pygame.image.load(os.path.join(os.getcwd(), 'cards', 'images', f'{card.name}.png'))
                 card_img.convert()
-                card_img = pygame.transform.scale(card_img, (self.card_width, self.card_height))
+                card_img = pygame.transform.smoothscale(card_img, (self.card_width, self.card_height))
                 win.blit(card_img, (x, self.y[color][card_index]))
 
     def click(self, pos):
@@ -292,32 +292,32 @@ class Playmat:
         self.playmat_img_path = os.path.join(self.img_folder, 'Playmat.png')
         playmat_img = pygame.image.load(self.playmat_img_path)
         playmat_img.convert()
-        playmat_img = pygame.transform.scale(playmat_img, (self.playmat_width, self.playmat_height))
+        playmat_img = pygame.transform.smoothscale(playmat_img, (self.playmat_width, self.playmat_height))
         win.blit(playmat_img, (self.playmat_x, self.playmat_y))
 
         if self.discard_pile:
             discarded_card_img = pygame.image.load(os.path.join(self.img_folder, f'{self.discard_pile[-1].name}.png'))
             discarded_card_img.convert()
-            discarded_card_img = pygame.transform.scale(discarded_card_img, (self.card_width, self.card_height))
+            discarded_card_img = pygame.transform.smoothscale(discarded_card_img, (self.card_width, self.card_height))
             win.blit(discarded_card_img, (self.discard_pile_x, self.discard_pile_y))
 
         if self.traits_pile:
             traits_back_img = pygame.image.load(self.traits_back_img_path)
             traits_back_img.convert()
-            traits_back_img = pygame.transform.scale(traits_back_img, (self.card_width, self.card_height))
+            traits_back_img = pygame.transform.smoothscale(traits_back_img, (self.card_width, self.card_height))
             win.blit(traits_back_img, (self.traits_pile_x, self.traits_pile_y))
 
         if self.ages_pile:
             ages_back_img = pygame.image.load(self.ages_back_img_path)
             ages_back_img.convert()
-            ages_back_img = pygame.transform.scale(ages_back_img, (self.card_width, self.card_height))
+            ages_back_img = pygame.transform.smoothscale(ages_back_img, (self.card_width, self.card_height))
             win.blit(ages_back_img, (self.ages_pile_x, self.ages_pile_y))
 
         for era, cards in enumerate(self.eras):
             if cards:
                 card_img = pygame.image.load(os.path.join(self.img_folder, f'{cards[-1].name}.png'))
                 card_img.convert()
-                card_img = pygame.transform.scale(card_img, (self.card_width, self.card_height))
+                card_img = pygame.transform.smoothscale(card_img, (self.card_width, self.card_height))
                 win.blit(card_img, (self.eras_x_y[era][0], self.eras_x_y[era][1]))
 
     def click(self, pos):
