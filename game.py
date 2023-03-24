@@ -17,10 +17,14 @@ class Player:
         self.stabilized = False
         self.number_dominants = 0
         self.world_end_points = 0
+        self.bonus_points = 0
         self.view_modes = {'View Hand': player_id, 'View Trait Piles': player_id}
 
-    def number_cards_in_hand(self):
-        return len(self.hand)
+    def number_cards_in_hand(self, card_type='all'):
+        if card_type == 'effect':
+            return sum([1 for card in self.hand if not card.effects])
+        elif card_type == 'all':
+            return len(self.hand)
 
     def number_colors(self):
         num_colors = 0
@@ -42,13 +46,30 @@ class Player:
         number_above = 0
         for traits in self.trait_pile.values():
             for trait in traits:
-                if trait.face_value > face_value:
+                if trait.face_value is not None and trait.face_value > face_value:
                     number_above += 1
         return number_above
+
+    def number_kidneys(self):
+        kidney_count = 0
+        for traits in self.trait_pile.values():
+            for trait in traits:
+                if trait.name.startswith('Kidney'):
+                    kidney_count += 1
+        return kidney_count
+
+    def number_swarms(self):
+        swarm_count = 0
+        for traits in self.trait_pile.values():
+            for trait in traits:
+                if trait.name.startswith('Swarm'):
+                    swarm_count += 1
+        return swarm_count
 
 
 class Game:
     def __init__(self, num_players, age_per_pile=1, num_eras=3, max_gene_pool=8, min_gene_pool=1):
+        self.scored_compiled = False
         self.world_end_effect = None
         self.world_ended = False
         self.last_discard_player_id = None
@@ -203,11 +224,10 @@ class Game:
             self.update_game()
             return
 
-        self.compile_score()
+        if not self.scored_compiled:
+            self.compile_score()
 
         self.game_state = ['End game' for _ in range(self.num_players)]
-
-        print('world ended!')
 
     def resolve_world_end_traits(self, player_id):
         pass
@@ -233,10 +253,23 @@ class Game:
             # face value points
             for color, cards in player.trait_pile.items():
                 for card in cards:
-                    self.scores[player_id]['face_values'] += card.face_value
+                    if card.face_value is not None:
+                        self.scores[player_id]['face_values'] += card.face_value
 
             # bonus points
-            self.scores[player_id]['bonus_points'] = 0
+            for traits in player.trait_pile.values():
+                for trait in traits:
+                    if not trait.bonus_counted:
+                        bonus_point_function = trait.bonus_points
+                        function_name = bonus_point_function['name']
+                        params = bonus_point_function['params']
+                        game_function = getattr(self, function_name)
+                        game_function(player_id, **params)
+                        trait.bonus_counted = True
+
+            self.scores[player_id]['bonus_points'] = player.bonus_points
+
+        self.scored_compiled = True
 
     def catastrophe(self):
         pass
@@ -394,14 +427,17 @@ class Game:
 
     def turn_restricted(self, card):
         for restriction in self.turn_restrictions:
+            restricted_attribute_value = getattr(card, restriction['restricted_attribute'])
+            if restricted_attribute_value is None:
+                return False
             if restriction['restricted_type'] == 'equal':
-                if getattr(card, restriction['restricted_attribute']) == restriction['restricted_value']:
+                if restricted_attribute_value == restriction['restricted_value']:
                     return True
             elif restriction['restricted_type'] == 'greater_than':
-                if getattr(card, restriction['restricted_attribute']) > restriction['restricted_value']:
+                if restricted_attribute_value > restriction['restricted_value']:
                     return True
             elif restriction['restricted_type'] == 'smaller_than':
-                if getattr(card, restriction['restricted_attribute']) < restriction['restricted_value']:
+                if restricted_attribute_value < restriction['restricted_value']:
                     return True
         return False
 
@@ -480,6 +516,30 @@ class Game:
                 if compare_type == 'greater_than':
                     number_traits = player.number_traits_above(face_value)
                 player.world_end_points += number_traits * value
+
+    def kidney_bonus(self, player_id):
+        player = self.players[player_id]
+        player.bonus_points += player.number_kidneys()
+
+    def swarm_bonus(self, player_id):
+        player = self.players[player_id]
+        player.bonus_points += sum([player.number_swarms() for player in self.players])
+
+    def bonus_for_every_color(self, player_id, color, value):
+        player = self.players[player_id]
+        player.bonus_points += player.number_traits(color=color) * value
+
+    def bonus_gene_pool(self, player_id):
+        player = self.players[player_id]
+        player.bonus_points += player.gene_pool
+
+    def bonus_max_gene_pool(self, player_id):
+        player = self.players[player_id]
+        player.bonus_points += max([player.gene_pool for player in self.players])
+
+    def bonus_number_cards_hand(self, player_id, card_type='all'):
+        player = self.players[player_id]
+        player.bonus_points += player.number_cards_in_hand(card_type)
 
     def update_buttons(self):
         num_queued_actions = len(self.action_queue)
