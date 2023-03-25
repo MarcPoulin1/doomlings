@@ -21,50 +21,98 @@ class Player:
         self.view_modes = {'View Hand': player_id, 'View Trait Piles': player_id}
 
     def number_cards_in_hand(self, card_type='all'):
-        if card_type == 'effect':
-            return sum([1 for card in self.hand if not card.effects])
+        if card_type == 'dominant':
+            card_count = 0
+            for card in self.hand:
+                if card.is_dominant:
+                    card_count += 1
+            return card_count
+        elif card_type == 'effect':
+            card_count = 0
+            for card in self.hand:
+                if card.effects or card.remove_effects or card.bonus_points is not None:
+                    card_count += 1
+            return card_count
         elif card_type == 'all':
             return len(self.hand)
 
-    def number_colors(self):
+    def number_colors(self, location):
         num_colors = 0
-        for color, cards in self.trait_pile.items():
-            if color != 'Colorless':
-                if len(cards) > 0:
-                    num_colors += 1
-        return num_colors
+        if location == 'trait_pile':
+            for color, cards in self.trait_pile.items():
+                if color != 'Colorless':
+                    if len(cards) > 0:
+                        num_colors += 1
+            return num_colors
+        elif location == 'hand':
+            colors = []
+            for card in self.hand:
+                if card.color != 'Colorless' and card.color not in colors:
+                    colors.append(card.color)
+            return len(colors)
+
+    def lowest_color_count(self):
+        number_cards_color = [len(values) for values in self.trait_pile.values() if len(values) > 0]
+        if number_cards_color:
+            return min([len(values) for values in self.trait_pile.values() if len(values) > 0])
+        else:
+            return 0
 
     def number_traits(self, color=None):
         if color is None:
-            return sum({key: len(values) for key, values in self.trait_pile.items()}.values())
+            return sum([len(values) for values in self.trait_pile.values()])
         elif color not in self.trait_pile_colors:
             raise Exception('Color in not found in possible colors.')
         else:
-            return sum({color: len(values) for key, values in self.trait_pile.items() if key == color}.values())
+            return sum([len(values) for key, values in self.trait_pile.items() if key == color])
 
     def number_traits_above(self, face_value):
-        number_above = 0
+        number_traits = 0
         for traits in self.trait_pile.values():
             for trait in traits:
                 if trait.face_value is not None and trait.face_value > face_value:
-                    number_above += 1
-        return number_above
+                    number_traits += 1
+        return number_traits
+
+    def number_traits_equal(self, face_value):
+        number_traits = 0
+        for traits in self.trait_pile.values():
+            for trait in traits:
+                if trait.face_value is not None and trait.face_value == face_value:
+                    number_traits += 1
+        return number_traits
+
+    def number_traits_negative(self):
+        number_traits = 0
+        for traits in self.trait_pile.values():
+            for trait in traits:
+                if trait.face_value is not None and trait.face_value < 0:
+                    number_traits += 1
+        return number_traits
+
+    def number_traits_expansion(self, expansion):
+        number_traits = 0
+        for traits in self.trait_pile.values():
+            for trait in traits:
+                if trait.expansion == expansion:
+                    number_traits += 1
+        return number_traits
 
     def number_kidneys(self):
-        kidney_count = 0
+        number_traits = 0
         for traits in self.trait_pile.values():
             for trait in traits:
                 if trait.name.startswith('Kidney'):
-                    kidney_count += 1
-        return kidney_count
+                    number_traits += 1
+        return number_traits
 
     def number_swarms(self):
-        swarm_count = 0
+        number_traits = 0
         for traits in self.trait_pile.values():
             for trait in traits:
                 if trait.name.startswith('Swarm'):
-                    swarm_count += 1
-        return swarm_count
+                    number_traits += 1
+        return number_traits
 
 
 class Game:
@@ -259,7 +307,7 @@ class Game:
             # bonus points
             for traits in player.trait_pile.values():
                 for trait in traits:
-                    if not trait.bonus_counted:
+                    if trait.bonus_points is not None and not trait.bonus_counted:
                         bonus_point_function = trait.bonus_points
                         function_name = bonus_point_function['name']
                         params = bonus_point_function['params']
@@ -464,7 +512,7 @@ class Game:
     def draw_card_for_every_color_type(self, affected_players):
         if affected_players == 'all':
             for player_id, player in enumerate(self.players):
-                num_cards_to_draw = player.number_colors()
+                num_cards_to_draw = player.number_colors('trait_pile')
                 self.draw_cards('self', num_cards_to_draw, player_id=player_id)
 
     def discard_card_from_hand_for_every_color(self, affected_players, color):
@@ -517,11 +565,11 @@ class Game:
                     number_traits = player.number_traits_above(face_value)
                 player.world_end_points += number_traits * value
 
-    def kidney_bonus(self, player_id):
+    def bonus_kidney(self, player_id):
         player = self.players[player_id]
         player.bonus_points += player.number_kidneys()
 
-    def swarm_bonus(self, player_id):
+    def bonus_swarm(self, player_id):
         player = self.players[player_id]
         player.bonus_points += sum([player.number_swarms() for player in self.players])
 
@@ -540,6 +588,77 @@ class Game:
     def bonus_number_cards_hand(self, player_id, card_type='all'):
         player = self.players[player_id]
         player.bonus_points += player.number_cards_in_hand(card_type)
+
+    def bonus_all_colors_trait_pile(self, player_id, value):
+        player = self.players[player_id]
+        if player.number_colors('trait_pile') == 4:
+            player.bonus_points += value
+
+    def bonus_number_colors(self, player_id, location, value):
+        player = self.players[player_id]
+        player.bonus_points += player.number_colors(location) * value
+
+    def bonus_more_traits(self, player_id, value):
+        player = self.players[player_id]
+        players_num_traits = sorted([player.number_traits() for player in self.players], reverse=True)
+
+        if player.number_traits() == players_num_traits[0] and players_num_traits[0] > players_num_traits[1]:
+            player.bonus_points += value
+
+    def bonus_discard_expansion(self, player_id, expansion, value):
+        player = self.players[player_id]
+        for card in self.discard_pile:
+            if card.expansion == expansion:
+                player.bonus_points += value
+
+    def bonus_discard_dominant(self, player_id, value):
+        player = self.players[player_id]
+        for card in self.discard_pile:
+            if card.is_dominant:
+                player.bonus_points += value
+
+    def bonus_negative_face_value(self, player_id, value):
+        player = self.players[player_id]
+        player.bonus_points += player.number_traits_negative() * value
+
+    def bonus_number_traits(self, player_id, value):
+        player = self.players[player_id]
+        player.bonus_points += player.number_traits() * value
+
+    def bonus_lowest_color(self, player_id, value):
+        player = self.players[player_id]
+        if player.number_colors('trait_pile') >= 2:
+            player.bonus_points += player.lowest_color_count() * value
+
+    def bonus_every_negative_discard(self, player_id, every, value):
+        player = self.players[player_id]
+        number_negative = 0
+        for card in self.discard_pile:
+            if card.face_value is not None and card.face_value < 0:
+                number_negative += 1
+        player.bonus_points += int(number_negative / every) * value
+
+    def bonus_dominant_hand(self, player_id, value):
+        player = self.players[player_id]
+        player.bonus_points += player.number_cards_in_hand(card_type='dominant') * value
+
+    def bonus_expansion_all_trait_piles(self, player_id, expansion, value):
+        player = self.players[player_id]
+        player.bonus_points += sum([player.number_traits_expansion(expansion) for player in self.players]) * value
+
+    def bonus_face_value(self, player_id, face_value, value):
+        player = self.players[player_id]
+        player.bonus_points += player.number_traits_equal(face_value) * value
+
+    def bonus_color_pair_opponents(self, player_id, color, value):
+        player = self.players[player_id]
+        number_color_pairs = [int(player.number_traits(color) / 2) for p_id, player in enumerate(self.players) if p_id != player_id]
+        player.bonus_points += sum(number_color_pairs) * value
+
+    def bonus_color_pair(self, player_id, value):
+        player = self.players[player_id]
+        color_pairs = [int(player.number_traits(color) / 2) for color in player.trait_pile_colors if color != 'Colorless']
+        player.bonus_points += sum(color_pairs) * value
 
     def update_buttons(self):
         num_queued_actions = len(self.action_queue)
@@ -661,8 +780,6 @@ class Game:
                                 Cards in hand: {players_hand_names[player_id]}
                                 Cards in trait pile: {players_trait_pile_names[player_id]}
                                 """
-        self.compile_score()
-        displayed_text += str(self.scores)
         for player_id in range(self.num_players):
             cards_playable = [card.playable for card in self.players[player_id].hand]
             displayed_text += str(cards_playable)

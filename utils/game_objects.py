@@ -5,8 +5,6 @@ from PIL import Image
 
 class Button:
     def __init__(self, text, x, y, color, text_size=10, border_x=10, border_y=10, active_type='always'):
-        self.width = None
-        self.height = None
         self.rendered_text = None
         self.text = text
         self.x = x
@@ -17,12 +15,12 @@ class Button:
         self.border_y = border_y
         self.active_type = active_type
         self.active = True
-
-    def draw(self, win):
         font = pygame.font.SysFont('comicsans', self.text_size)
         self.rendered_text = font.render(self.text, 1, (0, 0, 0))
         self.width = self.rendered_text.get_width() + 2 * self.border_x
         self.height = self.rendered_text.get_height() + 2 * self.border_y
+
+    def draw(self, win):
 
         pygame.draw.rect(win, self.color, (self.x - self.border_x, self.y - self.border_y, self.width, self.height))
         win.blit(self.rendered_text, (self.x, self.y))

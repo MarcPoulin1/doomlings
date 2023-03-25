@@ -21,8 +21,8 @@ buttons = [Button('View Hand', 50, 50, (255, 255, 255), 10, 10, 10),
            Button('Stabilize', 450, 100, (255, 255, 255), 10, 10, 10, 'conditional'),
            Button('End Turn', 550, 100, (255, 255, 255), 10, 10, 10, 'conditional')]
 
-view_buttons = [ViewButton('left', 50, 125, (255, 255, 255)),
-                ViewButton('right', 70, 125, (255, 255, 255))]
+view_buttons = [ViewButton('left', 50, 125, (255, 255, 255), active=False),
+                ViewButton('right', 70, 125, (255, 255, 255), active=False)]
 
 
 def redraw_window(win, game, player_id, view_mode):
@@ -33,28 +33,107 @@ def redraw_window(win, game, player_id, view_mode):
                100, 100, (255, 255, 255), 20, 20, 20).draw(win)
     if game.game_state[player_id] == 'End game':
 
-        Button(f'Game ended!', 100, 100, (255, 255, 255), 20, 20, 20).draw(win)
+        for button in buttons:
+            if not button.active_type == 'conditional':
+                button.draw(win)
 
-        text_world_end = 'World end points: '
-        text_face_values = 'Face value points: '
-        text_bonus_points = 'Bonus points: '
-        text_final_score = 'Final score: '
+        if view_mode == 'View Hand':
+            view_id = game.players[player_id].view_modes[view_mode]
+            if view_id == 0:
+                view_buttons[0].active = False
+            else:
+                view_buttons[0].active = True
+            if view_id == game.num_players - 1:
+                view_buttons[1].active = False
+            else:
+                view_buttons[1].active = True
+            for button in view_buttons:
+                if button.active:
+                    button.draw(win)
 
-        for player_scores in game.scores:
-            world_end_score = player_scores['world_end']
-            face_value_score = player_scores['face_values']
-            bonus_points_score = player_scores['bonus_points']
-            final_score = world_end_score + face_value_score + bonus_points_score
+            font = pygame.font.SysFont('comicsans', 20)
+            rendered_text = font.render(game.players[view_id].name, 1, (255, 255, 255))
+            win.blit(rendered_text, (125, 150 - rendered_text.get_height() / 2))
 
-            text_world_end += ' ' + str(world_end_score)
-            text_face_values += ' ' + str(face_value_score)
-            text_bonus_points += ' ' + str(bonus_points_score)
-            text_final_score += ' ' + str(final_score)
+            if view_id == player_id:
+                hand = Hand(game.players[view_id].hand, win_width=game_window.get_width(),
+                            win_height=game_window.get_height())
+            else:
+                hand = Hand(game.players[view_id].hand, win_width=game_window.get_width(),
+                            win_height=game_window.get_height(), view_cards=False)
+            hand.draw_hand(win)
 
-        Button(text_world_end, 100, 100, (255, 255, 255), 20, 20, 20).draw(win)
-        Button(text_face_values, 100, 200, (255, 255, 255), 20, 20, 20).draw(win)
-        Button(text_bonus_points, 100, 300, (255, 255, 255), 20, 20, 20).draw(win)
-        Button(text_final_score, 100, 400, (255, 255, 255), 20, 20, 20).draw(win)
+            gene_pool = GenePool(game.players[player_id].gene_pool)
+            gene_pool.draw_gene_pool(win)
+
+            selected_cards = [selected_card for selected_card in game.players[player_id].current_selection['View Hand']
+                              if selected_card['view_id'] == view_id]
+            for selected_card in selected_cards:
+                card_index = selected_card['card_index']
+                pygame.draw.rect(win, (255, 0, 0), [hand.x[card_index], hand.y, hand.card_width, hand.card_height], 5)
+
+        if view_mode == 'View Trait Piles':
+            view_id = game.players[player_id].view_modes[view_mode]
+            if view_id == 0:
+                view_buttons[0].active = False
+            else:
+                view_buttons[0].active = True
+            if view_id == game.num_players - 1:
+                view_buttons[1].active = False
+            else:
+                view_buttons[1].active = True
+            for button in view_buttons:
+                if button.active:
+                    button.draw(win)
+
+            font = pygame.font.SysFont('comicsans', 20)
+            rendered_text = font.render(game.players[view_id].name, 1, (255, 255, 255))
+            win.blit(rendered_text, (125, 150 - rendered_text.get_height() / 2))
+
+            trait_pile = TraitPile(game.players[view_id].trait_pile, win_width=game_window.get_width(),
+                                   win_height=game_window.get_height())
+            trait_pile.draw_trait_pile(win)
+
+            selected_cards = [selected_card for selected_card in
+                              game.players[player_id].current_selection['View Trait Piles']
+                              if selected_card['view_id'] == view_id]
+
+            for selected_card in selected_cards:
+                color = selected_card['color']
+                color_index = trait_pile.colors.index(color)
+                card_index = selected_card['card_index']
+                pygame.draw.rect(win, (255, 0, 0), [trait_pile.x[color_index], trait_pile.y[color][card_index],
+                                                    trait_pile.card_width, trait_pile.card_height], 5)
+
+        if view_mode == 'View Game Piles':
+            playmat = Playmat(game.discard_pile, game.traits_pile, game.ages_pile, game.eras,
+                              win_width=game_window.get_width(), win_height=game_window.get_height())
+            playmat.draw_game_piles(win)
+
+        if view_mode == 'View Game State':
+
+            Button(f'Game ended!', 100, 200, (255, 255, 255), 20, 20, 20).draw(win)
+
+            text_world_end = 'World end points: '
+            text_face_values = 'Face value points: '
+            text_bonus_points = 'Bonus points: '
+            text_final_score = 'Final score: '
+
+            for player_scores in game.scores:
+                world_end_score = player_scores['world_end']
+                face_value_score = player_scores['face_values']
+                bonus_points_score = player_scores['bonus_points']
+                final_score = world_end_score + face_value_score + bonus_points_score
+
+                text_world_end += ' ' + str(world_end_score)
+                text_face_values += ' ' + str(face_value_score)
+                text_bonus_points += ' ' + str(bonus_points_score)
+                text_final_score += ' ' + str(final_score)
+
+            Button(text_world_end, 100, 300, (255, 255, 255), 20, 20, 20).draw(win)
+            Button(text_face_values, 100, 400, (255, 255, 255), 20, 20, 20).draw(win)
+            Button(text_bonus_points, 100, 500, (255, 255, 255), 20, 20, 20).draw(win)
+            Button(text_final_score, 100, 600, (255, 255, 255), 20, 20, 20).draw(win)
 
     elif game.game_state[player_id] in ['Playing', 'Discard', 'Waiting for Players Actions']:
         for button in buttons:
@@ -200,7 +279,7 @@ def main(player_name):
                 unpause_type = pygame.MOUSEBUTTONUP
                 pos = pygame.mouse.get_pos()
                 for button in buttons:
-                    if button.click(pos):
+                    if button.active and button.click(pos):
                         pause = True
                         if button.text in view_modes:
                             view_mode = button.text
@@ -221,7 +300,7 @@ def main(player_name):
                                     'params': {'player_id': player_id, 'trait_pile_id': player_id}}
                             n.send(json.dumps(data))
                 for view_button in view_buttons:
-                    if view_button.click(pos, game_window):
+                    if view_button.active and view_button.click(pos, game_window):
                         pause = True
                         if view_button.direction == 'left':
                             data = {'function': 'update_view_id',
