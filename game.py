@@ -30,7 +30,7 @@ class Player:
         elif card_type == 'effect':
             card_count = 0
             for card in self.hand:
-                if card.effects or card.remove_effects or card.bonus_points is not None:
+                if card.effects is not None or card.remove_effects is not None or card.bonus_points is not None:
                     card_count += 1
             return card_count
         elif card_type == 'all':
@@ -193,18 +193,31 @@ class Game:
         del player.hand[selected_card_index]
         self.players[player_id].number_cards_turn -= 1
 
-        for effect in played_card.effects:
-            function_name = effect['name']
-            params = effect['params']
-            game_function = getattr(self, function_name)
-            if 'player_id' in inspect.getfullargspec(game_function).args:
-                params['player_id'] = player_id
-            if 'trait_pile_id' in inspect.getfullargspec(game_function).args:
-                params['trait_pile_id'] = trait_pile_id
-            game_function(**params)
+        if played_card.effects is not None:
+            for effect in played_card.effects:
+                function_name = effect['name']
+                params = effect['params']
+                game_function = getattr(self, function_name)
+                if 'player_id' in inspect.getfullargspec(game_function).args:
+                    params['player_id'] = player_id
+                if 'trait_pile_id' in inspect.getfullargspec(game_function).args:
+                    params['trait_pile_id'] = trait_pile_id
+                game_function(**params)
+                self.reset_selections(player_id)
+                self.update_game()
 
-        self.reset_selections(player_id)
-        self.update_game()
+        if played_card.actions is not None:
+            for action in played_card.actions:
+                function_name = action['name']
+                params = action['params']
+                game_function = getattr(self, function_name)
+                if 'player_id' in inspect.getfullargspec(game_function).args:
+                    params['player_id'] = player_id
+                if 'trait_pile_id' in inspect.getfullargspec(game_function).args:
+                    params['trait_pile_id'] = trait_pile_id
+                game_function(**params)
+                self.reset_selections(player_id)
+                self.update_game()
 
     def end_turn(self, player_id):
         start_new_turn = False
@@ -446,12 +459,13 @@ class Game:
             discarded_card = self.players[action_view_id].trait_pile[selected_color][selected_index]
             del self.action_queue[0]
             self.discard_pile.append(discarded_card)
-            for effect in discarded_card.remove_effects:
-                function_name = effect['name']
-                params = effect['params']
-                game_function = getattr(self, function_name)
-                game_function(**params)
-                self.update_game()
+            if discarded_card.remove_effects is not None:
+                for effect in discarded_card.remove_effects:
+                    function_name = effect['name']
+                    params = effect['params']
+                    game_function = getattr(self, function_name)
+                    game_function(**params)
+                    self.update_game()
             del self.players[action_view_id].trait_pile[selected_color][selected_index]
         self.last_discarded_card = discarded_card
         self.last_discard_player_id = player_id
@@ -493,6 +507,27 @@ class Game:
         if affected_players == 'all':
             for player in self.players:
                 player.number_cards_turn = value
+
+    def discard_card_for_hand(self, affected_players, num_cards, player_id=None):
+        if affected_players == 'self':
+            player = self.players[player_id]
+            new_actions = []
+            num_cards_to_discard = min(player.number_cards_in_hand(), num_cards)
+            for _ in range(num_cards_to_discard):
+                new_actions.append({'player_id': player_id, 'name': 'Discard', 'view_mode': 'View Hand',
+                                    'view_id': player_id, 'color': None})
+            self.action_queue = new_actions + self.action_queue
+
+    def discard_card_for_trait_pile(self, affected_players, num_cards, color, player_id=None):
+        if affected_players == 'opponents':
+            for p_id, player in enumerate(self.players):
+                if p_id != player_id:
+                    new_actions = []
+                    num_cards_to_discard = min(player.number_traits(color), num_cards)
+                    for _ in range(num_cards_to_discard):
+                        new_actions.append({'player_id': p_id, 'name': 'Discard', 'view_mode': 'View Trait Piles',
+                                            'view_id': p_id, 'color': color})
+                    self.action_queue = new_actions + self.action_queue
 
     def discard_hand(self, affected_players, player_id=None):
         if affected_players == 'self':
@@ -690,6 +725,8 @@ class Game:
         action_color = action['color']
         player = self.players[player_id]
         current_player_selection = player.current_selection
+        if not current_player_selection[action_view_mode]:
+            return False
         if action_color is None:
             action_selection = [selected_card for selected_card in current_player_selection[action_view_mode]
                                 if selected_card['view_id'] == action_view_id]
