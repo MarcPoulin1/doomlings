@@ -135,7 +135,7 @@ def redraw_window(win, game, player_id, view_mode):
             Button(text_bonus_points, 100, 500, (255, 255, 255), 20, 20, 20).draw(win)
             Button(text_final_score, 100, 600, (255, 255, 255), 20, 20, 20).draw(win)
 
-    elif game.game_state[player_id] in ['Playing', 'Discard', 'Waiting for Players Actions']:
+    elif game.game_state[player_id] in ['Playing', 'Discard', 'Play Card', 'Waiting for Players Actions']:
         for button in buttons:
             if button.active_type == 'conditional':
                 if button.text in game.active_buttons[player_id]:
@@ -316,7 +316,7 @@ def main(player_name):
                     hand = Hand(game.players[view_id].hand, win_width=game_window.get_width(),
                                 win_height=game_window.get_height())
                     card_index = hand.click(pos)
-                    if game.game_state[player_id] in ['Playing', 'Discard', 'Waiting for Players Actions']:
+                    if game.game_state[player_id] in ['Playing', 'Discard', 'Play Card', 'Waiting for Players Actions']:
                         if card_index is not None:
                             pause = True
                             data = {'function': 'update_selection', 'params': {'player_id': player_id,

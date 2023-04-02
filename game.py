@@ -182,6 +182,8 @@ class Game:
 
     def play_card(self, player_id, trait_pile_id):
         player = self.players[player_id]
+        if self.action_queue and self.action_queue[0]['name'] == 'Play Card':
+            del self.action_queue[0]
         selected_card_index = player.current_selection['View Hand'][0]['card_index']
         played_card = player.hand[selected_card_index]
         self.last_trait_played = played_card
@@ -355,7 +357,7 @@ class Game:
                             card.playable = False
                         elif card.is_dominant and player.number_dominants == 2:
                             card.playable = False
-                        elif self.action_queue:
+                        elif self.action_queue and self.action_queue[0]['name'] == 'Discard':
                             card.playable = False
                         else:
                             card.playable = True
@@ -446,19 +448,17 @@ class Game:
         if action_color is None:
             action_selection = [selected_card for selected_card in current_player_selection[action_view_mode]
                                 if selected_card['view_id'] == action_view_id][0]
-            selected_index = action_selection['card_index']
-            discarded_card = self.players[action_view_id].hand[selected_index]
-            del self.action_queue[0]
-            self.discard_pile.append(discarded_card)
-            del self.players[action_view_id].hand[selected_index]
         else:
             action_selection = [selected_card for selected_card in current_player_selection[action_view_mode]
-                                if selected_card['view_id'] == action_view_id and selected_card['color'] == action_color][0]
-            selected_index = action_selection['card_index']
+                                if selected_card['view_id'] == action_view_id and selected_card['color'] == action_color]
+        selected_index = action_selection['card_index']
+        del self.action_queue[0]
+        if action_view_mode == 'View Hand':
+            discarded_card = self.players[action_view_id].hand[selected_index]
+            del self.players[action_view_id].hand[selected_index]
+        elif action_view_mode == 'View Trait Piles':
             selected_color = action_selection['color']
             discarded_card = self.players[action_view_id].trait_pile[selected_color][selected_index]
-            del self.action_queue[0]
-            self.discard_pile.append(discarded_card)
             if discarded_card.remove_effects is not None:
                 for effect in discarded_card.remove_effects:
                     function_name = effect['name']
@@ -467,6 +467,7 @@ class Game:
                     game_function(**params)
                     self.update_game()
             del self.players[action_view_id].trait_pile[selected_color][selected_index]
+        self.discard_pile.append(discarded_card)
         self.last_discarded_card = discarded_card
         self.last_discard_player_id = player_id
         self.reset_selections(player_id)
@@ -508,7 +509,7 @@ class Game:
             for player in self.players:
                 player.number_cards_turn = value
 
-    def discard_card_for_hand(self, affected_players, num_cards, player_id=None):
+    def discard_card_from_hand(self, affected_players, num_cards, player_id=None):
         if affected_players == 'self':
             player = self.players[player_id]
             new_actions = []
@@ -517,8 +518,25 @@ class Game:
                 new_actions.append({'player_id': player_id, 'name': 'Discard', 'view_mode': 'View Hand',
                                     'view_id': player_id, 'color': None})
             self.action_queue = new_actions + self.action_queue
+        elif affected_players == 'opponents':
+            for p_id, player in enumerate(self.players):
+                if p_id != player_id:
+                    new_actions = []
+                    num_cards_to_discard = min(player.number_cards_in_hand(), num_cards)
+                    for _ in range(num_cards_to_discard):
+                        new_actions.append({'player_id': p_id, 'name': 'Discard', 'view_mode': 'View Hand',
+                                            'view_id': p_id, 'color': None})
+                    self.action_queue = new_actions + self.action_queue
+        elif affected_players == 'all':
+            for p_id, player in enumerate(self.players):
+                new_actions = []
+                num_cards_to_discard = min(player.number_cards_in_hand(), num_cards)
+                for _ in range(num_cards_to_discard):
+                    new_actions.append({'player_id': p_id, 'name': 'Discard', 'view_mode': 'View Hand',
+                                        'view_id': p_id, 'color': None})
+                self.action_queue = new_actions + self.action_queue
 
-    def discard_card_for_trait_pile(self, affected_players, num_cards, color, player_id=None):
+    def discard_card_from_trait_pile(self, affected_players, num_cards, color=None, player_id=None):
         if affected_players == 'opponents':
             for p_id, player in enumerate(self.players):
                 if p_id != player_id:
@@ -528,6 +546,22 @@ class Game:
                         new_actions.append({'player_id': p_id, 'name': 'Discard', 'view_mode': 'View Trait Piles',
                                             'view_id': p_id, 'color': color})
                     self.action_queue = new_actions + self.action_queue
+        if affected_players == 'self':
+            player = self.players[player_id]
+            new_actions = []
+            num_cards_to_discard = min(player.number_traits(color), num_cards)
+            for _ in range(num_cards_to_discard):
+                new_actions.append({'player_id': player_id, 'name': 'Discard', 'view_mode': 'View Trait Piles',
+                                    'view_id': player_id, 'color': color})
+            self.action_queue = new_actions + self.action_queue
+        if affected_players == 'all':
+            new_actions = []
+            for p_id, player in enumerate(self.players):
+                num_traits_to_discard = min(player.number_traits(color), num_cards)
+                for _ in range(num_traits_to_discard):
+                    new_actions.append({'player_id': p_id, 'name': 'Discard',
+                                        'view_mode': 'View Trait Piles', 'view_id': p_id, 'color': color})
+            self.action_queue = new_actions + self.action_queue
 
     def discard_hand(self, affected_players, player_id=None):
         if affected_players == 'self':
@@ -570,15 +604,15 @@ class Game:
                                         'view_id': player_id, 'color': None})
             self.action_queue = new_actions + self.action_queue
 
-    def discard_card_from_trait_pile(self, affected_players, color, value):
-        if affected_players == 'all':
+    def play_another_trait(self, affected_players, num_traits, player_id=None):
+        if affected_players == 'self':
+            player = self.players[player_id]
+            player.number_cards_turn += 1
             new_actions = []
-            for player_id, player in enumerate(self.players):
-                num_traits_to_discard = min(player.number_traits(color), value)
-                for _ in range(num_traits_to_discard):
-                    new_actions.append({'player_id': player_id, 'name': 'Discard',
-                                        'view_mode': 'View Trait Piles', 'view_id': player_id, 'color': color})
-            self.action_queue = new_actions + self.action_queue
+            for _ in range(num_traits):
+                new_actions.append({'player_id': player_id, 'name': 'Play Card',
+                                    'view_mode': 'View Hand', 'view_id': player_id, 'color': None})
+                self.action_queue = new_actions + self.action_queue
 
     def modify_world_end_points_for_every_color(self, affected_players, color, value):
         if affected_players == 'all':
@@ -738,6 +772,21 @@ class Game:
         else:
             return False
 
+    def update_action_queue(self):
+        if len(self.action_queue) > 0:
+            current_action = self.action_queue[0]
+            if current_action['name'] == 'Discard':
+                if current_action['view_mode'] == 'View Hand':
+                    if self.players[current_action['view_id']].number_cards_in_hand() == 0:
+                        del self.action_queue[0]
+                elif current_action['view_mode'] == 'View Trait Piles':
+                    if self.players[current_action['view_id']].number_traits(current_action['color']) == 0:
+                        del self.action_queue[0]
+            if current_action['name'] == 'Play Card':
+                if current_action['view_mode'] == 'View Hand':
+                    if self.players[current_action['view_id']].number_cards_in_hand() == 0:
+                        del self.action_queue[0]
+
     def update_game_state(self):
         if len(self.action_queue) > 0:
             current_action = self.action_queue[0]
@@ -755,6 +804,7 @@ class Game:
                 self.game_state[player_id] = 'Playing'
 
     def update_game(self):
+        self.update_action_queue()
         self.update_game_state()
         self.hand_playable()
         self.update_buttons()

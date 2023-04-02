@@ -33,7 +33,7 @@ catastrophes = [Catastrophe(name='Overpopulation', gene_pool_effect=1,
                             catastrophe_effects=[{'name': 'discard_card_from_hand_for_every_color',
                                                   'params': {'affected_players': 'all', 'color': 'Colorless'}}],
                             world_end_effect={'name': 'discard_card_from_trait_pile',
-                                              'params': {'affected_players': 'all', 'color': 'Green', 'value': 1}},
+                                              'params': {'affected_players': 'all', 'color': 'Green', 'num_cards': 1}},
                             expansion='Base'),
                 Catastrophe(name='Retrovirus', gene_pool_effect=-1,
                             catastrophe_effects=[
@@ -48,7 +48,7 @@ catastrophes = [Catastrophe(name='Overpopulation', gene_pool_effect=1,
                             catastrophe_effects=[
                                 {'name': 'discard_card_from_hand_for_every_color', 'params': {'affected_players': 'all', 'color': 'Purple'}}],
                             world_end_effect={'name': 'discard_card_from_trait_pile',
-                                              'params': {'affected_players': 'all', 'color': 'Purple', 'value': 1}}, expansion='Base')
+                                              'params': {'affected_players': 'all', 'color': 'Purple', 'num_cards': 1}}, expansion='Base')
                 ]
 
 catastrophes = [Catastrophe(name='Impact Event', gene_pool_effect=-1,
