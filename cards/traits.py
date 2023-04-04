@@ -3,14 +3,15 @@ import os
 
 class Trait:
 
-    def __init__(self, name, face_value, color, effects=None, remove_effects=None, actions=None, bonus_points=None,
-                 expansion='Base', is_dominant=False, bonus_counted=False, playable=False):
+    def __init__(self, name, face_value, color, effects=None, remove_effects=None, actions=None, play_conditions=None,
+                 bonus_points=None, expansion='Base', is_dominant=False, bonus_counted=False, playable=False):
         self.name = name
         self.face_value = face_value
         self.color = color
         self.effects = effects
         self.remove_effects = remove_effects
         self.actions = actions
+        self.play_conditions = play_conditions
         self.bonus_points = bonus_points
         self.expansion = expansion
         self.is_dominant = is_dominant
@@ -233,13 +234,43 @@ traits = [Trait(name='Talons', face_value=2, color='Purple', expansion='Dinoling
                 actions=[{'name': 'play_another_trait',
                           'params': {'affected_players': 'self', 'num_traits': 1}}],
                 face_value=1,
-                color='Green')
-          ]
-
-traits = [Trait(name='Voracious',
+                color='Green'),
+          Trait(name='Voracious',
                 actions=[{'name': 'discard_card_from_trait_pile',
                           'params': {'affected_players': 'self', 'num_cards': 1}},
                          {'name': 'play_another_trait',
                           'params': {'affected_players': 'self', 'num_traits': 1}}],
                 face_value=2,
-                color='Red') for _ in range(50)]
+                color='Red'),
+          Trait(name='Phreakish Eyes',
+                actions=[{'name': 'draw_cards',
+                          'params': {'affected_players': 'self', 'value': 3}},
+                         {'name': 'draw_cards',
+                          'params': {'affected_players': 'opponents', 'value': 1}}],
+                face_value=2,
+                color='Red',
+                expansion='Techlings'),
+          Trait(name='Protofeathers',
+                actions=[{'name': 'play_another_trait',
+                          'params': {'affected_players': 'self', 'num_traits': 2, 'ignore_actions': True}}],
+                face_value=-2,
+                color='Purple',
+                expansion='Dinolings'),
+          Trait(name='Delicious',
+                play_conditions=[{'name': 'at_least_n_traits',
+                                  'params': {'num_traits': 1, 'color': 'Colorless'}}],
+                face_value=4,
+                color='Colorless')
+          ]
+
+traits = [Trait(name='Heroic',
+                play_conditions=[{'name': 'at_least_n_traits',
+                                  'params': {'num_traits': 3, 'color': 'Green'}}],
+                face_value=7,
+                color='Green',
+                is_dominant=True) for _ in range(50)] + \
+         [Trait(name='Propagation',
+                actions=[{'name': 'play_another_trait',
+                          'params': {'affected_players': 'self', 'num_traits': 1}}],
+                face_value=1,
+                color='Green') for _ in range(50)]

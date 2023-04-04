@@ -114,6 +114,12 @@ class Player:
                     number_traits += 1
         return number_traits
 
+    def at_least_n_traits(self, num_traits, color):
+        if self.number_traits(color) >= num_traits:
+            return True
+        else:
+            return False
+
 
 class Game:
     def __init__(self, num_players, age_per_pile=1, num_eras=3, max_gene_pool=8, min_gene_pool=1):
@@ -183,7 +189,10 @@ class Game:
     def play_card(self, player_id, trait_pile_id):
         player = self.players[player_id]
         if self.action_queue and self.action_queue[0]['name'] == 'Play Card':
+            ignore_actions = self.action_queue[0]['ignore_actions']
             del self.action_queue[0]
+        else:
+            ignore_actions = False
         selected_card_index = player.current_selection['View Hand'][0]['card_index']
         played_card = player.hand[selected_card_index]
         self.last_trait_played = played_card
@@ -208,7 +217,7 @@ class Game:
                 self.reset_selections(player_id)
                 self.update_game()
 
-        if played_card.actions is not None:
+        if played_card.actions is not None and not ignore_actions:
             for action in played_card.actions:
                 function_name = action['name']
                 params = action['params']
@@ -220,6 +229,9 @@ class Game:
                 game_function(**params)
                 self.reset_selections(player_id)
                 self.update_game()
+
+        self.reset_selections(player_id)
+        self.update_game()
 
     def end_turn(self, player_id):
         start_new_turn = False
@@ -355,7 +367,9 @@ class Game:
                     for card in player.hand:
                         if self.turn_restricted(card):
                             card.playable = False
-                        elif card.is_dominant and player.number_dominants == 2:
+                        elif not self.play_condition_met(player_id, card):
+                            card.playable = False
+                        elif card.is_dominant and player.number_dominants >= 2:
                             card.playable = False
                         elif self.action_queue and self.action_queue[0]['name'] == 'Discard':
                             card.playable = False
@@ -504,6 +518,19 @@ class Game:
                     return True
         return False
 
+    def play_condition_met(self, player_id, card):
+        player = self.players[player_id]
+        if card.play_conditions is None:
+            return True
+        else:
+            for condition in card.play_conditions:
+                function_name = condition['name']
+                params = condition['params']
+                game_function = getattr(player, function_name)
+                if not game_function(**params):
+                    return False
+        return True
+
     def modify_number_cards_turn(self, affected_players, value):
         if affected_players == 'all':
             for player in self.players:
@@ -604,15 +631,16 @@ class Game:
                                         'view_id': player_id, 'color': None})
             self.action_queue = new_actions + self.action_queue
 
-    def play_another_trait(self, affected_players, num_traits, player_id=None):
+    def play_another_trait(self, affected_players, num_traits, player_id=None, ignore_actions=False):
         if affected_players == 'self':
             player = self.players[player_id]
-            player.number_cards_turn += 1
+            player.number_cards_turn += num_traits
             new_actions = []
             for _ in range(num_traits):
                 new_actions.append({'player_id': player_id, 'name': 'Play Card',
-                                    'view_mode': 'View Hand', 'view_id': player_id, 'color': None})
-                self.action_queue = new_actions + self.action_queue
+                                    'view_mode': 'View Hand', 'view_id': player_id, 'color': None,
+                                    'ignore_actions': ignore_actions})
+            self.action_queue = new_actions + self.action_queue
 
     def modify_world_end_points_for_every_color(self, affected_players, color, value):
         if affected_players == 'all':
