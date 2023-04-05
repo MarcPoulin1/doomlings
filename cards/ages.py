@@ -49,6 +49,10 @@ ages = [Age(name='Tropical Lands',
             instant_effects=[], expansion='Base'),
         Age(name='Flourish', turn_effects=[],
             instant_effects=[{'name': 'draw_cards', 'params': {'affected_players': 'all', 'value': 2}}],
+            expansion='Base'),
+        Age(name='Age of Peace',
+            turn_effects=[{'name': 'turn_ignore_actions', 'params': {}}],
+            instant_effects=[],
             expansion='Base')
         ] + [Age(name='Northern Winds', turn_effects=[],
                  instant_effects=[{'name': 'draw_cards', 'params': {'affected_players': 'all', 'value': 1}},
@@ -56,8 +60,8 @@ ages = [Age(name='Tropical Lands',
                                    'params': {'affected_players': 'all', 'value': 1}}],
                  expansion='Base') for _ in range(2)]
 
-"""ages = [Age(name='Northern Winds', turn_effects=[],
-            instant_effects=[{'name': 'draw_cards', 'params': {'affected_players': 'all', 'value': 1}},
-                             {'name': 'add_cards_to_discard_from_hand',
-                              'params': {'affected_players': 'all', 'value': 1}}],
-            expansion='Base') for _ in range(20)]"""
+ages = [Age(name='Comet Showers',
+            turn_effects=[],
+            instant_effects=[{'name': 'discard_card_from_hand',
+                              'params': {'affected_players': 'all', 'num_cards': 1, 'random_discard': True}}],
+            expansion='Base') for _ in range(20)]

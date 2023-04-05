@@ -18,6 +18,7 @@ buttons = [Button('View Hand', 50, 50, (255, 255, 255), 10, 10, 10),
            Button('View Game State', 350, 50, (255, 255, 255), 10, 10, 10),
            Button('Play Card', 250, 100, (255, 255, 255), 10, 10, 10, 'conditional'),
            Button('Discard', 350, 100, (255, 255, 255), 10, 10, 10, 'conditional'),
+           Button('Random Discard', 350, 100, (255, 255, 255), 10, 10, 10, 'conditional'),
            Button('Stabilize', 450, 100, (255, 255, 255), 10, 10, 10, 'conditional'),
            Button('End Turn', 550, 100, (255, 255, 255), 10, 10, 10, 'conditional')]
 
@@ -135,7 +136,7 @@ def redraw_window(win, game, player_id, view_mode):
             Button(text_bonus_points, 100, 500, (255, 255, 255), 20, 20, 20).draw(win)
             Button(text_final_score, 100, 600, (255, 255, 255), 20, 20, 20).draw(win)
 
-    elif game.game_state[player_id] in ['Playing', 'Discard', 'Play Card', 'Waiting for Players Actions']:
+    elif game.game_state[player_id] in ['Playing', 'Discard', 'Random Discard', 'Play Card', 'Waiting for Players Actions']:
         for button in buttons:
             if button.active_type == 'conditional':
                 if button.text in game.active_buttons[player_id]:
@@ -295,6 +296,10 @@ def main(player_name):
                             data = {'function': 'discard_selected_card',
                                     'params': {'player_id': player_id}}
                             n.send(json.dumps(data))
+                        elif button.text == 'Random Discard':
+                            data = {'function': 'discard_random_card',
+                                    'params': {'player_id': player_id}}
+                            n.send(json.dumps(data))
                         elif button.text == 'Play Card':
                             data = {'function': 'play_card',
                                     'params': {'player_id': player_id, 'trait_pile_id': player_id}}
@@ -316,7 +321,7 @@ def main(player_name):
                     hand = Hand(game.players[view_id].hand, win_width=game_window.get_width(),
                                 win_height=game_window.get_height())
                     card_index = hand.click(pos)
-                    if game.game_state[player_id] in ['Playing', 'Discard', 'Play Card', 'Waiting for Players Actions']:
+                    if game.game_state[player_id] in ['Playing', 'Discard', 'Random Discard', 'Play Card', 'Waiting for Players Actions']:
                         if card_index is not None:
                             pause = True
                             data = {'function': 'update_selection', 'params': {'player_id': player_id,
@@ -329,7 +334,7 @@ def main(player_name):
                     trait_pile = TraitPile(game.players[view_id].trait_pile, win_width=game_window.get_width(),
                                            win_height=game_window.get_height())
                     trait_pile_color, card_index = trait_pile.click(pos)
-                    if game.game_state[player_id] in ['Playing', 'Discard', 'Waiting for Players Actions']:
+                    if game.game_state[player_id] in ['Playing', 'Discard', 'Random Discard', 'Waiting for Players Actions']:
                         if card_index is not None:
                             pause = True
                             data = {'function': 'update_selection', 'params': {'player_id': player_id,
