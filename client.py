@@ -301,7 +301,7 @@ def main(player_name):
                                     'params': {'player_id': player_id}}
                             n.send(json.dumps(data))
                         elif button.text == 'Play Card':
-                            data = {'function': 'play_card',
+                            data = {'function': 'play_selected_card',
                                     'params': {'player_id': player_id, 'trait_pile_id': player_id}}
                             n.send(json.dumps(data))
                 for view_button in view_buttons:

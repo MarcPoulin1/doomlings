@@ -260,7 +260,13 @@ traits = [Trait(name='Talons', face_value=2, color='Purple', expansion='Dinoling
                 play_conditions=[{'name': 'at_least_n_traits',
                                   'params': {'num_traits': 1, 'color': 'Colorless'}}],
                 face_value=4,
-                color='Colorless')
+                color='Colorless'),
+          Trait(name='Heroic',
+                play_conditions=[{'name': 'at_least_n_traits',
+                                  'params': {'num_traits': 3, 'color': 'Green'}}],
+                face_value=7,
+                color='Green',
+                is_dominant=True)
           ]
 
 traits = [Trait(name='Heroic',
